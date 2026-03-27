@@ -44,6 +44,11 @@ export default function HomePage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [period, setPeriod] = useState<Period>("month");
   const [showAdd, setShowAdd] = useState(false);
+  const [greet, setGreet] = useState("Welcome");
+
+  useEffect(() => {
+    setGreet(greeting());
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -82,7 +87,7 @@ export default function HomePage() {
       {/* Header */}
       <div className="px-5 pt-14 pb-4 flex items-center justify-between">
         <div>
-          <p className="text-[#7A8EA0] text-sm">{greeting()}</p>
+          <p className="text-[#7A8EA0] text-sm" suppressHydrationWarning>{greet}</p>
           <p className="text-white text-xl font-bold mt-0.5">
             {user.displayName?.split(" ")[0] ?? "there"} 👋
           </p>

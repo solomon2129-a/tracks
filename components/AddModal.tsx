@@ -19,6 +19,7 @@ export default function AddModal({ userId, onClose }: AddModalProps) {
   const [type, setType] = useState<TransactionType | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -35,9 +36,13 @@ export default function AddModal({ userId, onClose }: AddModalProps) {
   const handleSave = async () => {
     if (!type || !category || !amount) return;
     setSaving(true);
+    setSaveError(false);
     try {
       await addTransaction(userId, { amount: parseFloat(amount), type, category });
       onClose();
+    } catch {
+      setSaveError(true);
+      setTimeout(() => setSaveError(false), 3000);
     } finally {
       setSaving(false);
     }
@@ -240,6 +245,11 @@ export default function AddModal({ userId, onClose }: AddModalProps) {
                 </div>
               </div>
 
+              {saveError && (
+                <p className="text-[#FF5A5F] text-xs text-center pb-2 fade-up">
+                  Failed to save. Check your connection or Firestore rules.
+                </p>
+              )}
               <div className="pb-8 flex gap-2.5">
                 <button
                   onClick={() => goTo(2, "back")}
