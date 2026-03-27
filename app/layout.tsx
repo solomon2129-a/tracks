@@ -20,9 +20,9 @@ export default function RootLayout({
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </head>
-      <body className={`${inter.className} bg-gray-50`}>
+      <body className={`${inter.className} bg-[#0C0C10]`}>
         <AuthProvider>
-          <div className="max-w-md mx-auto min-h-screen bg-white relative">
+          <div className="max-w-md mx-auto min-h-screen bg-[#0C0C10] relative">
             {children}
           </div>
         </AuthProvider>

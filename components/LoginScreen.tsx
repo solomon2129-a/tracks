@@ -6,27 +6,24 @@ export default function LoginScreen() {
   const { signInWithGoogle } = useAuth();
 
   return (
-    <div className="min-h-screen bg-white flex flex-col px-6 max-w-md mx-auto">
-      {/* Top section */}
+    <div className="min-h-screen bg-[#0C0C10] flex flex-col px-6 max-w-md mx-auto">
       <div className="flex-1 flex flex-col items-center justify-center gap-6">
-        <div className="w-24 h-24 bg-gray-900 rounded-[28px] flex items-center justify-center shadow-2xl shadow-gray-900/20">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <div className="w-24 h-24 bg-[#1A1A24] border border-[#2A2A38] rounded-[28px] flex items-center justify-center shadow-2xl">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#818CF8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <line x1="12" y1="1" x2="12" y2="23" />
             <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
           </svg>
         </div>
-
         <div className="text-center">
-          <h1 className="text-5xl font-bold text-gray-900 tracking-tight mb-2">Tracksy</h1>
-          <p className="text-gray-400 text-lg">Log money in under 3 seconds.</p>
+          <h1 className="text-5xl font-bold text-white tracking-tight mb-2">Tracksy</h1>
+          <p className="text-[#4A4A5A] text-lg">Log money in under 3 seconds.</p>
         </div>
       </div>
 
-      {/* Bottom section */}
       <div className="pb-10 flex flex-col gap-3">
         <button
           onClick={signInWithGoogle}
-          className="w-full flex items-center justify-center gap-3 bg-gray-900 text-white py-[18px] rounded-2xl font-semibold text-base active:scale-[0.97] transition-transform shadow-xl shadow-gray-900/20"
+          className="w-full flex items-center justify-center gap-3 bg-white text-gray-900 py-[18px] rounded-2xl font-semibold text-base active:scale-[0.97] transition-transform shadow-xl"
         >
           <svg width="20" height="20" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -36,7 +33,7 @@ export default function LoginScreen() {
           </svg>
           Continue with Google
         </button>
-        <p className="text-center text-xs text-gray-300">Your data is private and secure.</p>
+        <p className="text-center text-xs text-[#2A2A38]">Your data is private and secure.</p>
       </div>
     </div>
   );

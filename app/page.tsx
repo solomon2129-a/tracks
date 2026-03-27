@@ -30,8 +30,8 @@ export default function AddPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#0C0C10] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -64,42 +64,35 @@ export default function AddPage() {
 
   const handleTypeSelect = (t: TransactionType) => {
     setType(t);
-    // Clear category if type changes
     setCategory(null);
   };
 
   return (
-    <div className="min-h-screen flex flex-col pb-24 bg-white">
-      {/* Header with step indicator */}
+    <div className="min-h-screen bg-[#0C0C10] flex flex-col pb-24">
+      {/* Header */}
       <div className="pt-16 px-6 pb-4">
         <div className="flex items-center gap-1.5">
           {[1, 2, 3].map((s) => (
             <div
               key={s}
-              className="h-1 rounded-full transition-all duration-400"
+              className="h-1 rounded-full transition-all duration-300"
               style={{
                 width: s === step ? 28 : 12,
-                background: s === step ? "#111827" : s < step ? "#9CA3AF" : "#E5E7EB",
+                background: s === step ? "#818CF8" : s < step ? "#3730A3" : "#1F1F2A",
               }}
             />
           ))}
-          <span className="ml-auto text-xs font-medium text-gray-300">
-            {step} / 3
-          </span>
+          <span className="ml-auto text-xs font-medium text-[#2A2A38]">{step} / 3</span>
         </div>
       </div>
 
-      {/* Animated step content */}
+      {/* Animated step */}
       <div
         key={animKey}
         className={`flex-1 flex flex-col ${direction === "forward" ? "step-forward" : "step-back"}`}
       >
         {step === 1 && (
-          <AmountInput
-            value={amount}
-            onChange={setAmount}
-            onNext={() => goTo(2, "forward")}
-          />
+          <AmountInput value={amount} onChange={setAmount} onNext={() => goTo(2, "forward")} />
         )}
         {step === 2 && (
           <TypeSelector
@@ -121,10 +114,10 @@ export default function AddPage() {
         )}
       </div>
 
-      {/* Success toast */}
+      {/* Toast */}
       {saved && (
-        <div className="toast-in fixed top-8 left-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-2xl text-sm font-semibold shadow-xl flex items-center gap-2">
-          <span className="text-base">✓</span> Saved!
+        <div className="toast-in fixed top-8 left-1/2 z-50 bg-[#1A1A24] border border-[#2A2A38] text-white px-5 py-3 rounded-2xl text-sm font-semibold shadow-2xl flex items-center gap-2">
+          <span className="text-emerald-400 text-base">✓</span> Saved!
         </div>
       )}
 

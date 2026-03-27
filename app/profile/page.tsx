@@ -23,8 +23,8 @@ export default function ProfilePage() {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#0C0C10] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -56,51 +56,53 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col pb-28">
+    <div className="min-h-screen bg-[#0C0C10] flex flex-col pb-28">
       {/* Header */}
-      <div className="pt-16 pb-5 px-5 bg-white">
+      <div className="pt-16 pb-5 px-5">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
-          <button onClick={handleLogout} className="text-sm text-gray-400 font-medium active:text-gray-600 transition-colors">
+          <h1 className="text-2xl font-bold text-white">Profile</h1>
+          <button
+            onClick={handleLogout}
+            className="text-sm text-[#3A3A4A] font-medium active:text-white transition-colors"
+          >
             Sign out
           </button>
         </div>
 
-        {/* User info */}
         <div className="flex items-center gap-3">
           {user.photoURL ? (
             <img src={user.photoURL} alt="" className="w-12 h-12 rounded-2xl object-cover" />
           ) : (
-            <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-900 font-bold text-lg">
+            <div className="w-12 h-12 rounded-2xl bg-[#1A1A24] flex items-center justify-center text-white font-bold text-lg">
               {user.displayName?.[0] ?? "?"}
             </div>
           )}
           <div>
-            <p className="font-bold text-gray-900">{user.displayName}</p>
-            <p className="text-gray-400 text-sm">{user.email}</p>
+            <p className="font-bold text-white">{user.displayName}</p>
+            <p className="text-[#3A3A4A] text-sm">{user.email}</p>
           </div>
         </div>
       </div>
 
       <div className="flex flex-col gap-3 px-5">
         {/* Balance card */}
-        <div className="bg-gray-900 rounded-3xl p-6 text-white fade-up">
-          <p className="text-gray-500 text-xs font-semibold tracking-widest uppercase mb-3">Net Balance</p>
-          <p className={`text-5xl font-bold tracking-tight mb-6 ${netBalance < 0 ? "text-red-400" : "text-white"}`}>
+        <div className="bg-indigo-600 rounded-3xl p-6 fade-up shadow-2xl shadow-indigo-900/40">
+          <p className="text-indigo-300 text-xs font-semibold tracking-widest uppercase mb-3">Net Balance</p>
+          <p className={`text-5xl font-bold tracking-tight mb-6 ${netBalance < 0 ? "text-red-300" : "text-white"}`}>
             {netBalance < 0 ? "−" : "+"}₹{Math.abs(netBalance).toLocaleString("en-IN")}
           </p>
           <div className="flex gap-3">
-            <div className="flex-1 bg-white/8 rounded-2xl p-4 border border-white/10">
+            <div className="flex-1 bg-black/20 rounded-2xl p-4">
               <div className="flex items-center gap-1.5 mb-1">
                 <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                <p className="text-gray-400 text-xs font-medium">Income</p>
+                <p className="text-indigo-300 text-xs font-medium">Income</p>
               </div>
               <p className="text-white font-bold text-xl tabular-nums">₹{totalIncome.toLocaleString("en-IN")}</p>
             </div>
-            <div className="flex-1 bg-white/8 rounded-2xl p-4 border border-white/10">
+            <div className="flex-1 bg-black/20 rounded-2xl p-4">
               <div className="flex items-center gap-1.5 mb-1">
                 <div className="w-2 h-2 rounded-full bg-red-400" />
-                <p className="text-gray-400 text-xs font-medium">Spent</p>
+                <p className="text-indigo-300 text-xs font-medium">Spent</p>
               </div>
               <p className="text-white font-bold text-xl tabular-nums">₹{totalExpenses.toLocaleString("en-IN")}</p>
             </div>
@@ -109,8 +111,8 @@ export default function ProfilePage() {
 
         {/* Category Breakdown */}
         {Object.keys(expenseCategoryTotals).length > 0 && (
-          <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm fade-up">
-            <p className="text-gray-400 text-xs font-semibold tracking-widest uppercase mb-4">Spending by category</p>
+          <div className="bg-[#131318] rounded-3xl p-5 border border-[#1F1F2A] fade-up">
+            <p className="text-[#3A3A4A] text-xs font-semibold tracking-widest uppercase mb-4">Spending by category</p>
             <div className="flex flex-col gap-4">
               {Object.entries(expenseCategoryTotals)
                 .sort((a, b) => b[1] - a[1])
@@ -121,16 +123,16 @@ export default function ProfilePage() {
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <span className="text-lg">{ALL_CATEGORY_EMOJI[cat] ?? "📦"}</span>
-                          <span className="text-sm font-semibold text-gray-800">{cat}</span>
+                          <span className="text-sm font-semibold text-white">{cat}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-400">{pct.toFixed(0)}%</span>
-                          <span className="text-sm font-bold text-gray-900 tabular-nums">₹{total.toLocaleString("en-IN")}</span>
+                          <span className="text-xs text-[#3A3A4A]">{pct.toFixed(0)}%</span>
+                          <span className="text-sm font-bold text-white tabular-nums">₹{total.toLocaleString("en-IN")}</span>
                         </div>
                       </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-1.5 bg-[#1F1F2A] rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gray-900 rounded-full transition-all duration-700"
+                          className="h-full bg-indigo-500 rounded-full transition-all duration-700"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -141,12 +143,12 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Transaction History */}
-        <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm fade-up">
+        {/* History */}
+        <div className="bg-[#131318] rounded-3xl p-5 border border-[#1F1F2A] fade-up">
           <div className="flex items-center justify-between mb-4">
-            <p className="text-gray-400 text-xs font-semibold tracking-widest uppercase">History</p>
+            <p className="text-[#3A3A4A] text-xs font-semibold tracking-widest uppercase">History</p>
             {transactions.length > 0 && (
-              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+              <span className="text-xs text-[#3A3A4A] bg-[#1A1A24] px-2 py-0.5 rounded-full">
                 {transactions.length}
               </span>
             )}
@@ -155,11 +157,11 @@ export default function ProfilePage() {
           {transactions.length === 0 ? (
             <div className="text-center py-10">
               <p className="text-4xl mb-3">💸</p>
-              <p className="text-gray-400 text-sm">No transactions yet</p>
-              <p className="text-gray-300 text-xs mt-1">Add your first one above</p>
+              <p className="text-[#3A3A4A] text-sm">No transactions yet</p>
+              <p className="text-[#2A2A38] text-xs mt-1">Add your first one above</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y divide-[#1A1A24]">
               {transactions.map((t) => (
                 <TransactionItem key={t.id} transaction={t} onDelete={handleDelete} />
               ))}

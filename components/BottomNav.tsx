@@ -8,15 +8,15 @@ export default function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 max-w-md mx-auto">
-      <div className="mx-4 mb-4 bg-gray-900 rounded-3xl flex overflow-hidden shadow-2xl shadow-gray-900/30">
+      <div className="mx-4 mb-5 bg-[#131318] border border-[#1F1F2A] rounded-3xl flex overflow-hidden shadow-2xl">
         <Link
           href="/"
           className={`flex-1 flex flex-col items-center py-4 gap-1 transition-all duration-200 ${
-            pathname === "/" ? "text-white" : "text-gray-500"
+            pathname === "/" ? "text-indigo-400" : "text-[#3A3A4A]"
           }`}
         >
           <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 ${
-            pathname === "/" ? "bg-white/15" : ""
+            pathname === "/" ? "bg-indigo-500/15" : ""
           }`}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
@@ -30,11 +30,11 @@ export default function BottomNav() {
         <Link
           href="/profile"
           className={`flex-1 flex flex-col items-center py-4 gap-1 transition-all duration-200 ${
-            pathname === "/profile" ? "text-white" : "text-gray-500"
+            pathname === "/profile" ? "text-indigo-400" : "text-[#3A3A4A]"
           }`}
         >
           <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 ${
-            pathname === "/profile" ? "bg-white/15" : ""
+            pathname === "/profile" ? "bg-indigo-500/15" : ""
           }`}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
