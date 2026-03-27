@@ -7,36 +7,19 @@ export default function LoginScreen() {
   const { signInWithGoogle } = useAuth();
 
   return (
-    <div
-      className="min-h-screen flex flex-col px-6 max-w-md mx-auto"
-      style={{ background: "linear-gradient(180deg, #0D1623 0%, #191E29 100%)" }}
-    >
+    <div className="min-h-screen flex flex-col px-6 max-w-md mx-auto" style={{ background: "#0F0F0F" }}>
       <div className="flex-1 flex flex-col items-center justify-center gap-8">
-        <div className="relative">
-          <div
-            className="absolute inset-0 rounded-3xl blur-2xl"
-            style={{ background: "rgba(1,195,141,0.25)", transform: "scale(1.3)" }}
-          />
-          <Image
-            src="/logotr.png"
-            alt="Tracksy"
-            width={88}
-            height={88}
-            className="relative rounded-3xl"
-            priority
-          />
-        </div>
+        <Image src="/logotr.png" alt="Tracksy" width={80} height={80} className="rounded-3xl" priority />
         <div className="text-center">
           <h1 className="text-white text-4xl font-bold tracking-tight mb-2">Tracksy</h1>
-          <p className="text-[#7A8EA0] text-base">Log money in under 3 seconds.</p>
+          <p className="text-[#666] text-base">Log money in under 3 seconds.</p>
         </div>
       </div>
 
       <div className="pb-12 flex flex-col gap-3">
         <button
           onClick={signInWithGoogle}
-          className="w-full flex items-center justify-center gap-3 bg-white py-4 rounded-2xl font-bold text-base active:scale-[0.97] transition-transform"
-          style={{ color: "#191E29", boxShadow: "0 4px 24px rgba(255,255,255,0.12)" }}
+          className="w-full flex items-center justify-center gap-3 bg-white py-4 rounded-2xl font-bold text-base text-black active:scale-[0.97] transition-transform"
         >
           <svg width="20" height="20" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -46,7 +29,7 @@ export default function LoginScreen() {
           </svg>
           Continue with Google
         </button>
-        <p className="text-center text-xs text-[#2A3D52]">Your data is private and secure.</p>
+        <p className="text-center text-xs" style={{ color: "#333" }}>Your data is private and secure.</p>
       </div>
     </div>
   );

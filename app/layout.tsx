@@ -22,11 +22,11 @@ export default function RootLayout({
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </head>
-      <body className={`${inter.className} bg-[#191E29]`}>
+      <body className={`${inter.className} bg-[#0F0F0F]`}>
         <ErrorBoundary>
           <AuthProvider>
             <AppShell>
-              <div className="max-w-md mx-auto min-h-screen bg-[#191E29] relative">
+              <div className="max-w-md mx-auto min-h-screen bg-[#0F0F0F] relative">
                 {children}
               </div>
             </AppShell>

@@ -1,195 +1,274 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
-import LoginScreen from "@/components/LoginScreen";
-import BalanceCard from "@/components/BalanceCard";
-import BreakdownList from "@/components/BreakdownList";
-import TransactionItem from "@/components/TransactionItem";
 import BottomNav from "@/components/BottomNav";
-import AddModal from "@/components/AddModal";
-import { subscribeToTransactions, deleteTransaction, Transaction } from "@/lib/firestore";
+import CategoryIcon from "@/components/CategoryIcon";
+import { addTransaction, TransactionType, Category, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "@/lib/firestore";
 
-type Period = "today" | "week" | "month" | "all";
+type Step = 1 | 2 | 3;
 
-function startOf(period: Period): Date {
-  const now = new Date();
-  if (period === "today") return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (period === "week") {
-    const d = new Date(now);
-    d.setDate(d.getDate() - d.getDay());
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
-  if (period === "month") return new Date(now.getFullYear(), now.getMonth(), 1);
-  return new Date(0);
-}
+const BTN_PRIMARY = {
+  background: "#FFFFFF",
+  color: "#000000",
+} as const;
 
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
-}
-
-const PERIODS: { key: Period; label: string }[] = [
-  { key: "today", label: "Today" },
-  { key: "week", label: "Week" },
-  { key: "month", label: "Month" },
-  { key: "all", label: "All time" },
-];
+const BTN_DISABLED = {
+  background: "rgba(255,255,255,0.07)",
+  color: "#444",
+} as const;
 
 export default function HomePage() {
   const { user, loading } = useAuth();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [period, setPeriod] = useState<Period>("month");
-  const [showAdd, setShowAdd] = useState(false);
-  const [greet, setGreet] = useState("Welcome");
+  const [step, setStep] = useState<Step>(1);
+  const [direction, setDirection] = useState<"forward" | "back">("forward");
+  const [animKey, setAnimKey] = useState(0);
+  const [amount, setAmount] = useState("");
+  const [type, setType] = useState<TransactionType | null>(null);
+  const [category, setCategory] = useState<Category | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setGreet(greeting());
+    if (step === 1) {
+      const t = setTimeout(() => inputRef.current?.focus(), 120);
+      return () => clearTimeout(t);
+    }
+  }, [step]);
+
+  const goTo = useCallback((next: Step, dir: "forward" | "back") => {
+    setDirection(dir);
+    setAnimKey(k => k + 1);
+    setStep(next);
   }, []);
 
-  useEffect(() => {
-    if (!user) return;
-    return subscribeToTransactions(user.uid, setTransactions);
-  }, [user]);
+  const reset = useCallback(() => {
+    setAmount("");
+    setType(null);
+    setCategory(null);
+    setDirection("forward");
+    setAnimKey(k => k + 1);
+    setStep(1);
+  }, []);
+
+  const handleSave = async () => {
+    if (!type || !category || !amount || !user) return;
+    setSaving(true);
+    setSaveError(false);
+    try {
+      await addTransaction(user.uid, { amount: parseFloat(amount), type, category });
+      setSaved(true);
+      setTimeout(() => { setSaved(false); reset(); }, 1200);
+    } catch {
+      setSaveError(true);
+      setTimeout(() => setSaveError(false), 3000);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#191E29" }}>
-        <div className="w-8 h-8 border-2 border-[#01C38D] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0F0F0F" }}>
+        <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
       </div>
     );
   }
 
-  if (!user) return <LoginScreen />;
-
-  const totalIncome = transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-  const totalExpenses = transactions.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
-
-  const start = startOf(period);
-  const filtered = period === "all" ? transactions : transactions.filter((t) => {
-    const d = t.createdAt?.toDate?.();
-    return d && d >= start;
-  });
-
-  const periodExpenses = filtered.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
-  const categoryTotals = filtered
-    .filter((t) => t.type === "expense")
-    .reduce<Record<string, number>>((acc, t) => {
-      acc[t.category] = (acc[t.category] ?? 0) + t.amount;
-      return acc;
-    }, {});
+  const isValid = !!amount && parseFloat(amount) > 0;
+  const categories = type === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
 
   return (
-    <div className="min-h-screen flex flex-col pb-24" style={{ background: "#191E29" }}>
+    <div className="min-h-screen flex flex-col" style={{ background: "#0F0F0F" }}>
       {/* Header */}
-      <div className="px-5 pt-14 pb-4 flex items-center justify-between">
-        <div>
-          <p className="text-[#7A8EA0] text-sm" suppressHydrationWarning>{greet}</p>
-          <p className="text-white text-xl font-bold mt-0.5">
-            {user.displayName?.split(" ")[0] ?? "there"} 👋
-          </p>
-        </div>
-        {user.photoURL ? (
-          <img
-            src={user.photoURL}
-            alt=""
-            className="w-10 h-10 rounded-full object-cover"
-            style={{ boxShadow: "0 0 0 2px rgba(1,195,141,0.4)" }}
-          />
-        ) : (
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
-            style={{ background: "#132046", boxShadow: "0 0 0 2px rgba(1,195,141,0.4)" }}
-          >
-            {user.displayName?.[0] ?? "?"}
-          </div>
-        )}
+      <div className="px-5 pt-14 pb-4">
+        <p className="text-white text-xl font-bold">Add Transaction</p>
+        <p className="text-[#555] text-sm mt-0.5">Log what you spent or received</p>
       </div>
 
-      {/* Balance Card */}
-      <div className="px-5 mb-5">
-        <BalanceCard income={totalIncome} expenses={totalExpenses} />
-      </div>
-
-      {/* Period Tabs */}
-      <div className="px-5 mb-4">
-        <div className="flex gap-2">
-          {PERIODS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setPeriod(key)}
-              className="px-4 py-2 rounded-2xl text-xs font-semibold transition-all duration-200 active:scale-95 whitespace-nowrap"
+      {/* Form card */}
+      <div
+        className="flex-1 flex flex-col mx-5 mb-24 rounded-2xl overflow-hidden"
+        style={{ background: "#1A1A1A" }}
+      >
+        {/* Step dots */}
+        <div className="flex items-center gap-2 px-6 pt-5 pb-4">
+          {[1, 2, 3].map(s => (
+            <div
+              key={s}
+              className="rounded-full transition-all duration-300"
               style={{
-                background: period === key ? "#01C38D" : "rgba(255,255,255,0.06)",
-                color: period === key ? "#fff" : "#7A8EA0",
-                boxShadow: period === key ? "0 2px 12px rgba(1,195,141,0.35)" : "none",
+                width: s === step ? 20 : 7,
+                height: 7,
+                background: s <= step ? "#FFFFFF" : "rgba(255,255,255,0.12)",
               }}
-            >
-              {label}
-            </button>
+            />
           ))}
         </div>
-      </div>
 
-      {/* Breakdown */}
-      {Object.keys(categoryTotals).length > 0 && (
-        <div className="px-5 mb-4">
-          <BreakdownList categoryTotals={categoryTotals} totalExpenses={periodExpenses} />
-        </div>
-      )}
-
-      {/* Transactions */}
-      <div className="px-5">
-        <div className="rounded-3xl px-5 py-5" style={{ background: "#132046" }}>
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[#7A8EA0] text-[11px] font-semibold tracking-widest uppercase">Transactions</p>
-            {filtered.length > 0 && (
-              <span
-                className="text-[#7A8EA0] text-xs px-2 py-0.5 rounded-full"
-                style={{ background: "rgba(255,255,255,0.06)" }}
-              >
-                {filtered.length}
-              </span>
-            )}
-          </div>
-
-          {filtered.length === 0 ? (
-            <div className="text-center py-12">
-              <div
-                className="w-14 h-14 rounded-3xl flex items-center justify-center mx-auto mb-3"
-                style={{ background: "rgba(1,195,141,0.1)" }}
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#01C38D" strokeWidth="1.8" strokeLinecap="round">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </div>
-              <p className="text-white text-sm font-semibold">No transactions</p>
-              <p className="text-[#7A8EA0] text-xs mt-1">Tap + to log your first one</p>
-            </div>
-          ) : (
-            <div style={{ borderTop: "0px" }}>
-              {filtered.map((t, i) => (
-                <div
-                  key={t.id}
-                  style={{ borderTop: i > 0 ? "1px solid rgba(255,255,255,0.05)" : "none" }}
-                >
-                  <TransactionItem
-                    transaction={t}
-                    onDelete={(id) => deleteTransaction(user.uid, id)}
+        {/* Animated content */}
+        <div
+          key={animKey}
+          className={`flex-1 flex flex-col ${direction === "forward" ? "step-forward" : "step-back"}`}
+        >
+          {/* Step 1: Amount */}
+          {step === 1 && (
+            <div className="flex-1 flex flex-col px-6">
+              <div className="flex-1 flex flex-col items-center justify-center gap-3">
+                <p className="text-[#555] text-[11px] font-semibold tracking-widest uppercase">Enter Amount</p>
+                <div className="flex items-start justify-center mt-2">
+                  <span className="text-[#555] text-3xl mt-3 mr-1 font-semibold">₹</span>
+                  <input
+                    ref={inputRef}
+                    type="number"
+                    inputMode="decimal"
+                    value={amount}
+                    onChange={e => { const v = e.target.value; if (/^\d*\.?\d{0,2}$/.test(v)) setAmount(v); }}
+                    onKeyDown={e => e.key === "Enter" && isValid && goTo(2, "forward")}
+                    placeholder="0"
+                    className="bg-transparent border-none outline-none text-center w-52"
+                    style={{ fontSize: 64, fontWeight: 700, color: isValid ? "#fff" : "#2A2A2A" }}
                   />
                 </div>
-              ))}
+                <div
+                  className="h-px w-44 rounded-full transition-all duration-500"
+                  style={{ background: isValid ? "#FFFFFF" : "rgba(255,255,255,0.08)" }}
+                />
+              </div>
+              <div className="pb-8">
+                <button
+                  onClick={() => goTo(2, "forward")}
+                  disabled={!isValid}
+                  className="w-full font-bold py-5 rounded-2xl text-base active:scale-[0.97] transition-all"
+                  style={isValid ? BTN_PRIMARY : BTN_DISABLED}
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Type */}
+          {step === 2 && (
+            <div className="flex-1 flex flex-col px-6">
+              <div className="flex-1 flex flex-col justify-center gap-3">
+                <p className="text-[#555] text-[11px] font-semibold tracking-widest uppercase text-center mb-2">
+                  What was this?
+                </p>
+                <button
+                  onClick={() => { setType("expense"); setCategory(null); goTo(3, "forward"); }}
+                  className="rounded-2xl p-5 text-left active:scale-[0.98] transition-transform"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white text-lg font-bold mb-0.5">Spent</p>
+                      <p className="text-[#555] text-sm">Money going out</p>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(255,255,255,0.06)" }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" />
+                      </svg>
+                    </div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => { setType("income"); setCategory(null); goTo(3, "forward"); }}
+                  className="rounded-2xl p-5 text-left active:scale-[0.98] transition-transform"
+                  style={{ background: "rgba(34,197,94,0.05)", border: "1px solid rgba(34,197,94,0.15)" }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white text-lg font-bold mb-0.5">Received</p>
+                      <p className="text-[#555] text-sm">Money coming in</p>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(34,197,94,0.1)" }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />
+                      </svg>
+                    </div>
+                  </div>
+                </button>
+              </div>
+              <div className="pb-8">
+                <button
+                  onClick={() => goTo(1, "back")}
+                  className="w-full py-4 rounded-2xl text-sm font-semibold active:scale-[0.97] transition-all"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#888" }}
+                >
+                  Back
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Category */}
+          {step === 3 && type && (
+            <div className="flex-1 flex flex-col px-6">
+              <div className="flex-1 flex flex-col justify-center gap-4">
+                <p className="text-[#555] text-[11px] font-semibold tracking-widest uppercase text-center">
+                  {type === "expense" ? "Spent on?" : "Received from?"}
+                </p>
+                <div className="grid grid-cols-3 gap-2 stagger-children">
+                  {categories.map(({ label }) => {
+                    const isSelected = category === label;
+                    return (
+                      <button
+                        key={label}
+                        onClick={() => setCategory(label as Category)}
+                        className="fade-up flex flex-col items-center justify-center py-4 gap-2 rounded-2xl transition-all duration-150 active:scale-95"
+                        style={{
+                          background: isSelected ? "#FFFFFF" : "rgba(255,255,255,0.04)",
+                          border: `1px solid ${isSelected ? "#FFFFFF" : "rgba(255,255,255,0.07)"}`,
+                        }}
+                      >
+                        <CategoryIcon
+                          category={label}
+                          size={17}
+                          color={isSelected ? "#000" : "#FFFFFF"}
+                          strokeWidth={1.8}
+                        />
+                        <span
+                          className="text-[10px] font-semibold tracking-wide"
+                          style={{ color: isSelected ? "#000" : "#888" }}
+                        >
+                          {label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {saveError && (
+                <p className="text-[#F43F5E] text-xs text-center pb-2">Failed to save. Check your connection.</p>
+              )}
+              <div className="pb-8 flex gap-2">
+                <button
+                  onClick={() => goTo(2, "back")}
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center active:scale-90 transition-transform flex-shrink-0"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#888" }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={!category || saving}
+                  className="flex-1 font-bold py-4 rounded-2xl text-base active:scale-[0.97] transition-all"
+                  style={saved ? { background: "#22C55E", color: "#fff" } : category ? BTN_PRIMARY : BTN_DISABLED}
+                >
+                  {saved ? "Saved ✓" : saving ? "Saving…" : "Save"}
+                </button>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {showAdd && <AddModal userId={user.uid} onClose={() => setShowAdd(false)} />}
-      <BottomNav onAddClick={() => setShowAdd(true)} />
+      <BottomNav />
     </div>
   );
 }

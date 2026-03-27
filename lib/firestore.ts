@@ -105,3 +105,11 @@ export async function addTransaction(
 export async function deleteTransaction(userId: string, transactionId: string) {
   await deleteDoc(doc(getFirebaseDb(), "users", userId, "transactions", transactionId));
 }
+
+export async function deleteAllTransactions(userId: string) {
+  const { getDocs } = await import("firebase/firestore");
+  const snapshot = await getDocs(
+    collection(getFirebaseDb(), "users", userId, "transactions")
+  );
+  await Promise.all(snapshot.docs.map(d => deleteDoc(d.ref)));
+}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Transaction } from "@/lib/firestore";
-import CategoryIcon, { getCategoryColor } from "./CategoryIcon";
+import CategoryIcon from "./CategoryIcon";
 
 interface TransactionItemProps {
   transaction: Transaction;
@@ -21,7 +21,6 @@ export default function TransactionItem({ transaction, onDelete }: TransactionIt
     : "";
 
   const isIncome = transaction.type === "income";
-  const color = getCategoryColor(transaction.category);
 
   const handleDelete = () => {
     if (!confirming) {
@@ -35,31 +34,31 @@ export default function TransactionItem({ transaction, onDelete }: TransactionIt
   return (
     <div className="flex items-center gap-3 py-3.5">
       <div
-        className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
-        style={{ background: `${color}22` }}
+        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+        style={{ background: "rgba(255,255,255,0.06)" }}
       >
-        <CategoryIcon category={transaction.category} size={18} color={color} strokeWidth={1.8} />
+        <CategoryIcon category={transaction.category} size={16} color="#FFFFFF" strokeWidth={1.8} />
       </div>
 
       <div className="flex-1 min-w-0">
         <p className="text-white text-sm font-semibold">{transaction.category}</p>
-        <p className="text-[#7A8EA0] text-xs mt-0.5">{label}</p>
+        <p className="text-[#555] text-xs mt-0.5">{label}</p>
       </div>
 
       <div className="flex items-center gap-2">
         <span
           className="font-bold text-sm tabular-nums"
-          style={{ color: isIncome ? "#01C38D" : "#fff" }}
+          style={{ color: isIncome ? "#22C55E" : "#FFFFFF" }}
         >
           {isIncome ? "+" : "−"}₹{transaction.amount.toLocaleString("en-IN")}
         </span>
         {onDelete && (
           <button
             onClick={handleDelete}
-            className="w-7 h-7 rounded-xl flex items-center justify-center transition-all active:scale-90"
+            className="w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-90"
             style={{
-              background: confirming ? "rgba(255,90,95,0.18)" : "transparent",
-              color: confirming ? "#FF5A5F" : "#3D4F61",
+              background: confirming ? "rgba(244,63,94,0.15)" : "transparent",
+              color: confirming ? "#F43F5E" : "#444",
             }}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

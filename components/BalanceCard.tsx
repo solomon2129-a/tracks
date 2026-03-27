@@ -10,36 +10,28 @@ export default function BalanceCard({ income, expenses }: BalanceCardProps) {
   const isPositive = net >= 0;
 
   return (
-    <div
-      className="relative overflow-hidden rounded-3xl p-6"
-      style={{ background: "linear-gradient(135deg, #0D1B3E 0%, #132046 60%, #1A2A52 100%)" }}
-    >
-      {/* Ambient glow */}
-      <div
-        className="absolute w-48 h-48 rounded-full blur-3xl pointer-events-none"
-        style={{
-          background: isPositive ? "rgba(1,195,141,0.18)" : "rgba(255,90,95,0.18)",
-          top: "-30%",
-          right: "-10%",
-        }}
-      />
-
-      <p className="text-[#7A8EA0] text-[11px] font-semibold tracking-widest uppercase mb-3">Total Balance</p>
+    <div className="rounded-2xl p-5" style={{ background: "#1A1A1A" }}>
+      <p className="text-[#666] text-[11px] font-semibold tracking-widest uppercase mb-2">Net Balance</p>
       <p
-        className="text-[44px] font-bold leading-none mb-6 tracking-tight"
-        style={{ color: isPositive ? "#fff" : "#FF5A5F" }}
+        className="text-[42px] font-bold leading-none mb-5 tracking-tight"
+        style={{ color: isPositive ? "#FFFFFF" : "#F43F5E" }}
       >
         {net < 0 ? "−" : ""}₹{Math.abs(net).toLocaleString("en-IN")}
       </p>
-
-      <div className="flex items-center gap-3">
-        <div className="flex-1 rounded-2xl px-4 py-3" style={{ background: "rgba(1,195,141,0.12)" }}>
-          <p className="text-[#01C38D] text-[10px] font-bold tracking-widest uppercase mb-1">Income</p>
-          <p className="text-white font-bold text-base tabular-nums">₹{income.toLocaleString("en-IN")}</p>
+      <div className="flex gap-2">
+        <div
+          className="flex-1 rounded-xl px-4 py-3"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+        >
+          <p className="text-[#666] text-[10px] font-semibold tracking-widest uppercase mb-1">Income</p>
+          <p className="text-[#22C55E] font-bold text-sm tabular-nums">₹{income.toLocaleString("en-IN")}</p>
         </div>
-        <div className="flex-1 rounded-2xl px-4 py-3" style={{ background: "rgba(255,90,95,0.1)" }}>
-          <p className="text-[#FF5A5F] text-[10px] font-bold tracking-widest uppercase mb-1">Spent</p>
-          <p className="text-white font-bold text-base tabular-nums">₹{expenses.toLocaleString("en-IN")}</p>
+        <div
+          className="flex-1 rounded-xl px-4 py-3"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+        >
+          <p className="text-[#666] text-[10px] font-semibold tracking-widest uppercase mb-1">Spent</p>
+          <p className="text-white font-bold text-sm tabular-nums">₹{expenses.toLocaleString("en-IN")}</p>
         </div>
       </div>
     </div>
