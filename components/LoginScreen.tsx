@@ -7,26 +7,19 @@ export default function LoginScreen() {
   const { signInWithGoogle } = useAuth();
 
   return (
-    <div className="min-h-screen bg-[#0C0C10] flex flex-col px-6 max-w-md mx-auto">
-      <div className="flex-1 flex flex-col items-center justify-center gap-6">
-        <Image
-          src="/logotr.png"
-          alt="Tracksy"
-          width={96}
-          height={96}
-          className="rounded-[28px] shadow-2xl"
-          priority
-        />
+    <div className="min-h-screen bg-[#191E29] flex flex-col px-6 max-w-md mx-auto">
+      <div className="flex-1 flex flex-col items-center justify-center gap-8">
+        <Image src="/logotr.png" alt="Tracksy" width={80} height={80} className="rounded-3xl" priority />
         <div className="text-center">
-          <h1 className="text-5xl font-bold text-white tracking-tight mb-2">Tracksy</h1>
-          <p className="text-[#4A4A5A] text-lg">Log money in under 3 seconds.</p>
+          <h1 className="text-white text-4xl font-bold tracking-tight mb-2">Tracksy</h1>
+          <p className="text-[#606E79] text-base">Log money in under 3 seconds.</p>
         </div>
       </div>
 
-      <div className="pb-10 flex flex-col gap-3">
+      <div className="pb-12 flex flex-col gap-3">
         <button
           onClick={signInWithGoogle}
-          className="w-full flex items-center justify-center gap-3 bg-white text-gray-900 py-[18px] rounded-2xl font-semibold text-base active:scale-[0.97] transition-transform shadow-xl"
+          className="w-full flex items-center justify-center gap-3 bg-white text-[#191E29] py-4 rounded-2xl font-bold text-base active:scale-[0.97] transition-transform"
         >
           <svg width="20" height="20" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -36,7 +29,7 @@ export default function LoginScreen() {
           </svg>
           Continue with Google
         </button>
-        <p className="text-center text-xs text-[#2A2A38]">Your data is private and secure.</p>
+        <p className="text-center text-xs text-[#2A3441]">Your data is private and secure.</p>
       </div>
     </div>
   );

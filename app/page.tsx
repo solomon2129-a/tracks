@@ -1,127 +1,165 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import LoginScreen from "@/components/LoginScreen";
-import AmountInput from "@/components/AmountInput";
-import TypeSelector from "@/components/TypeSelector";
-import CategorySelector from "@/components/CategorySelector";
+import BalanceCard from "@/components/BalanceCard";
+import BreakdownList from "@/components/BreakdownList";
+import TransactionItem from "@/components/TransactionItem";
 import BottomNav from "@/components/BottomNav";
-import { addTransaction, TransactionType, Category } from "@/lib/firestore";
+import AddModal from "@/components/AddModal";
+import { subscribeToTransactions, deleteTransaction, Transaction } from "@/lib/firestore";
 
-type Step = 1 | 2 | 3;
+type Period = "today" | "week" | "month" | "all";
 
-export default function AddPage() {
+function startOf(period: Period): Date {
+  const now = new Date();
+  if (period === "today") return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (period === "week") {
+    const d = new Date(now);
+    d.setDate(d.getDate() - d.getDay());
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  if (period === "month") return new Date(now.getFullYear(), now.getMonth(), 1);
+  return new Date(0);
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+const PERIODS: { key: Period; label: string }[] = [
+  { key: "today", label: "Today" },
+  { key: "week", label: "Week" },
+  { key: "month", label: "Month" },
+  { key: "all", label: "All" },
+];
+
+export default function HomePage() {
   const { user, loading } = useAuth();
-  const [step, setStep] = useState<Step>(1);
-  const [direction, setDirection] = useState<"forward" | "back">("forward");
-  const [animKey, setAnimKey] = useState(0);
-  const [amount, setAmount] = useState("");
-  const [type, setType] = useState<TransactionType | null>(null);
-  const [category, setCategory] = useState<Category | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [period, setPeriod] = useState<Period>("month");
+  const [showAdd, setShowAdd] = useState(false);
 
-  const goTo = useCallback((next: Step, dir: "forward" | "back") => {
-    setDirection(dir);
-    setAnimKey((k) => k + 1);
-    setStep(next);
-  }, []);
+  useEffect(() => {
+    if (!user) return;
+    return subscribeToTransactions(user.uid, setTransactions);
+  }, [user]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0C0C10] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-[#191E29] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#01C38D] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   if (!user) return <LoginScreen />;
 
-  const reset = () => {
-    setAmount("");
-    setType(null);
-    setCategory(null);
-    goTo(1, "back");
-  };
+  // All-time totals for hero card
+  const totalIncome = transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const totalExpenses = transactions.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
 
-  const handleSave = async () => {
-    if (!user || !type || !category || !amount) return;
-    setSaving(true);
-    try {
-      await addTransaction(user.uid, {
-        amount: parseFloat(amount),
-        type,
-        category,
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-      reset();
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Period-filtered data
+  const start = startOf(period);
+  const filtered = period === "all" ? transactions : transactions.filter((t) => {
+    const d = t.createdAt?.toDate?.();
+    return d && d >= start;
+  });
 
-  const handleTypeSelect = (t: TransactionType) => {
-    setType(t);
-    setCategory(null);
-  };
+  const periodExpenses = filtered.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  const categoryTotals = filtered
+    .filter((t) => t.type === "expense")
+    .reduce<Record<string, number>>((acc, t) => {
+      acc[t.category] = (acc[t.category] ?? 0) + t.amount;
+      return acc;
+    }, {});
 
   return (
-    <div className="min-h-screen bg-[#0C0C10] flex flex-col pb-24">
+    <div className="min-h-screen bg-[#191E29] flex flex-col pb-24">
       {/* Header */}
-      <div className="pt-16 px-6 pb-4">
-        <div className="flex items-center gap-1.5">
-          {[1, 2, 3].map((s) => (
-            <div
-              key={s}
-              className="h-1 rounded-full transition-all duration-300"
-              style={{
-                width: s === step ? 28 : 12,
-                background: s === step ? "#818CF8" : s < step ? "#3730A3" : "#1F1F2A",
-              }}
-            />
+      <div className="px-5 pt-14 pb-5 flex items-center justify-between">
+        <div>
+          <p className="text-[#606E79] text-sm">{greeting()}</p>
+          <p className="text-white text-xl font-bold mt-0.5">
+            {user.displayName?.split(" ")[0] ?? "there"}
+          </p>
+        </div>
+        {user.photoURL ? (
+          <img src={user.photoURL} alt="" className="w-10 h-10 rounded-full object-cover ring-2 ring-[#2A3441]" />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-[#132046] flex items-center justify-center text-white font-bold text-sm ring-2 ring-[#2A3441]">
+            {user.displayName?.[0] ?? "?"}
+          </div>
+        )}
+      </div>
+
+      {/* Balance Card */}
+      <div className="px-5 mb-5">
+        <BalanceCard income={totalIncome} expenses={totalExpenses} />
+      </div>
+
+      {/* Period Tabs */}
+      <div className="px-5 mb-4">
+        <div className="bg-[#132046] rounded-2xl p-1 flex">
+          {PERIODS.map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setPeriod(key)}
+              className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ${
+                period === key ? "bg-[#01C38D] text-[#191E29]" : "text-[#606E79]"
+              }`}
+            >
+              {label}
+            </button>
           ))}
-          <span className="ml-auto text-xs font-medium text-[#2A2A38]">{step} / 3</span>
         </div>
       </div>
 
-      {/* Animated step */}
-      <div
-        key={animKey}
-        className={`flex-1 flex flex-col ${direction === "forward" ? "step-forward" : "step-back"}`}
-      >
-        {step === 1 && (
-          <AmountInput value={amount} onChange={setAmount} onNext={() => goTo(2, "forward")} />
-        )}
-        {step === 2 && (
-          <TypeSelector
-            selected={type}
-            onSelect={handleTypeSelect}
-            onNext={() => goTo(3, "forward")}
-            onBack={() => goTo(1, "back")}
-          />
-        )}
-        {step === 3 && type && (
-          <CategorySelector
-            type={type}
-            selected={category}
-            onSelect={setCategory}
-            onSave={handleSave}
-            onBack={() => goTo(2, "back")}
-            saving={saving}
-          />
-        )}
-      </div>
-
-      {/* Toast */}
-      {saved && (
-        <div className="toast-in fixed top-8 left-1/2 z-50 bg-[#1A1A24] border border-[#2A2A38] text-white px-5 py-3 rounded-2xl text-sm font-semibold shadow-2xl flex items-center gap-2">
-          <span className="text-emerald-400 text-base">✓</span> Saved!
+      {/* Spending Breakdown */}
+      {Object.keys(categoryTotals).length > 0 && (
+        <div className="px-5 mb-4">
+          <BreakdownList categoryTotals={categoryTotals} totalExpenses={periodExpenses} />
         </div>
       )}
 
-      <BottomNav />
+      {/* Transaction History */}
+      <div className="px-5">
+        <div className="bg-[#132046] rounded-3xl px-5 py-5">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[#606E79] text-xs font-medium tracking-widest uppercase">Transactions</p>
+            {filtered.length > 0 && (
+              <span className="text-[#606E79] text-xs bg-[#191E29] px-2 py-0.5 rounded-full">{filtered.length}</span>
+            )}
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-[#606E79] text-sm">No transactions</p>
+              <p className="text-[#2A3441] text-xs mt-1">Tap + to add one</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-[#2A3441]">
+              {filtered.map((t) => (
+                <TransactionItem
+                  key={t.id}
+                  transaction={t}
+                  onDelete={(id) => deleteTransaction(user.uid, id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Add Modal */}
+      {showAdd && <AddModal userId={user.uid} onClose={() => setShowAdd(false)} />}
+
+      <BottomNav onAddClick={() => setShowAdd(true)} />
     </div>
   );
 }
