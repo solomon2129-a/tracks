@@ -12,9 +12,18 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const auth = getAuth(app);
-const db = getFirestore(app);
-const googleProvider = new GoogleAuthProvider();
+// Lazy initialization — Firebase only initializes when first called (client-side),
+// never at module evaluation time during SSR/static generation.
+function getApp() {
+  return getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+}
 
-export { app, auth, db, googleProvider };
+export function getFirebaseAuth() {
+  return getAuth(getApp());
+}
+
+export function getFirebaseDb() {
+  return getFirestore(getApp());
+}
+
+export const googleProvider = new GoogleAuthProvider();

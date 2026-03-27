@@ -9,7 +9,7 @@ import {
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { getFirebaseDb } from "./firebase";
 
 export type TransactionType = "expense" | "income";
 
@@ -28,7 +28,7 @@ export function subscribeToTransactions(
   callback: (transactions: Transaction[]) => void
 ) {
   const q = query(
-    collection(db, "users", userId, "transactions"),
+    collection(getFirebaseDb(), "users", userId, "transactions"),
     orderBy("createdAt", "desc")
   );
 
@@ -45,12 +45,12 @@ export async function addTransaction(
   userId: string,
   data: Omit<Transaction, "id" | "createdAt">
 ) {
-  await addDoc(collection(db, "users", userId, "transactions"), {
+  await addDoc(collection(getFirebaseDb(), "users", userId, "transactions"), {
     ...data,
     createdAt: serverTimestamp(),
   });
 }
 
 export async function deleteTransaction(userId: string, transactionId: string) {
-  await deleteDoc(doc(db, "users", userId, "transactions", transactionId));
+  await deleteDoc(doc(getFirebaseDb(), "users", userId, "transactions", transactionId));
 }
