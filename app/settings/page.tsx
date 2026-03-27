@@ -31,14 +31,27 @@ export default function SettingsPage() {
     router.push("/");
   };
 
+  const inputStyle = {
+    background: "rgba(255,255,255,0.04)",
+    border: "1.5px solid rgba(255,255,255,0.08)",
+    color: "#fff",
+    borderRadius: 16,
+    padding: "14px 16px",
+    fontSize: 14,
+    outline: "none",
+    width: "100%",
+    transition: "border-color 0.2s",
+  };
+
   return (
-    <div className="min-h-screen bg-[#191E29] flex flex-col pb-10">
+    <div className="min-h-screen flex flex-col pb-10" style={{ background: "#191E29" }}>
       <div className="pt-14 pb-6 px-5 flex items-center gap-4">
         <button
           onClick={() => router.back()}
-          className="w-10 h-10 rounded-full bg-[#132046] flex items-center justify-center text-[#606E79] active:scale-95 transition-transform"
+          className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+          style={{ background: "rgba(255,255,255,0.06)", color: "#7A8EA0" }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
@@ -46,42 +59,56 @@ export default function SettingsPage() {
       </div>
 
       <div className="flex flex-col gap-3 px-5">
-        <div className="bg-[#132046] rounded-3xl p-5 border border-[#2A3441]">
+        {/* Change PIN */}
+        <div className="rounded-3xl p-5" style={{ background: "#132046" }}>
           <p className="text-white font-bold mb-1">Secret Code</p>
-          <p className="text-[#606E79] text-xs mb-5">Change the code used to unlock the app.</p>
+          <p className="text-[#7A8EA0] text-xs mb-5">Change the code used to unlock the app.</p>
           <div className="flex flex-col gap-3">
-            {["Current code", "New code", "Confirm new code"].map((ph, i) => {
-              const vals = [currentPin, newPin, confirmPin];
-              const setters = [setCurrentPin, setNewPin, setConfirmPin];
-              return (
-                <input
-                  key={ph}
-                  type="password"
-                  placeholder={ph}
-                  value={vals[i]}
-                  onChange={(e) => setters[i](e.target.value)}
-                  className="w-full bg-[#191E29] border border-[#2A3441] focus:border-[#01C38D] rounded-2xl px-4 py-3.5 text-white text-sm outline-none transition-colors placeholder-[#2A3441]"
-                />
-              );
-            })}
+            {[
+              { placeholder: "Current code", value: currentPin, setter: setCurrentPin },
+              { placeholder: "New code", value: newPin, setter: setNewPin },
+              { placeholder: "Confirm new code", value: confirmPin, setter: setConfirmPin },
+            ].map(({ placeholder, value, setter }) => (
+              <input
+                key={placeholder}
+                type="password"
+                placeholder={placeholder}
+                value={value}
+                onChange={(e) => setter(e.target.value)}
+                style={inputStyle}
+              />
+            ))}
             {error && <p className="text-[#FF5A5F] text-xs">{error}</p>}
             {success && <p className="text-[#01C38D] text-xs">Code updated successfully.</p>}
             <button
               onClick={handleChangePin}
               disabled={!currentPin || !newPin || !confirmPin}
-              className="w-full bg-[#01C38D] text-[#191E29] font-bold py-4 rounded-2xl text-sm disabled:opacity-20 active:scale-[0.97] transition-all"
+              className="w-full font-bold py-4 rounded-2xl text-sm active:scale-[0.97] transition-all"
+              style={{
+                background: currentPin && newPin && confirmPin
+                  ? "linear-gradient(135deg,#01C38D,#00A070)"
+                  : "rgba(255,255,255,0.06)",
+                color: currentPin && newPin && confirmPin ? "#fff" : "#3D5166",
+                boxShadow: currentPin && newPin && confirmPin ? "0 4px 16px rgba(1,195,141,0.3)" : "none",
+              }}
             >
               Update Code
             </button>
           </div>
         </div>
 
-        <div className="bg-[#132046] rounded-3xl p-5 border border-[#2A3441]">
+        {/* Sign out */}
+        <div className="rounded-3xl p-5" style={{ background: "#132046" }}>
           <p className="text-white font-bold mb-1">Account</p>
-          <p className="text-[#606E79] text-xs mb-5">Sign out of your Google account.</p>
+          <p className="text-[#7A8EA0] text-xs mb-5">Sign out of your Google account.</p>
           <button
             onClick={handleLogout}
-            className="w-full bg-[rgba(255,90,95,0.08)] border border-[rgba(255,90,95,0.2)] text-[#FF5A5F] py-4 rounded-2xl font-semibold text-sm active:scale-[0.97] transition-all"
+            className="w-full py-4 rounded-2xl font-semibold text-sm active:scale-[0.97] transition-all"
+            style={{
+              background: "rgba(255,90,95,0.08)",
+              border: "1.5px solid rgba(255,90,95,0.2)",
+              color: "#FF5A5F",
+            }}
           >
             Sign Out
           </button>

@@ -170,6 +170,28 @@ export function OtherIcon(p: IconProps) {
   );
 }
 
+export function getCategoryColor(category: string): string {
+  const colors: Record<string, string> = {
+    Food: "#FF9F0A",
+    Groceries: "#30D158",
+    Transport: "#0A84FF",
+    Travel: "#BF5AF2",
+    Bills: "#FFD60A",
+    Shopping: "#FF375F",
+    Health: "#FF453A",
+    Entertainment: "#64D2FF",
+    Cigarettes: "#98989D",
+    Lifestyle: "#FF6E40",
+    Work: "#30D158",
+    Project: "#0A84FF",
+    Friends: "#FFD60A",
+    Business: "#BF5AF2",
+    Gift: "#FF375F",
+    Other: "#636366",
+  };
+  return colors[category] ?? "#636366";
+}
+
 const ICON_MAP: Record<string, (p: IconProps) => React.ReactElement> = {
   Food: FoodIcon,
   Groceries: GroceriesIcon,

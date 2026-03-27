@@ -36,7 +36,7 @@ const PERIODS: { key: Period; label: string }[] = [
   { key: "today", label: "Today" },
   { key: "week", label: "Week" },
   { key: "month", label: "Month" },
-  { key: "all", label: "All" },
+  { key: "all", label: "All time" },
 ];
 
 export default function HomePage() {
@@ -52,7 +52,7 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#191E29] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#191E29" }}>
         <div className="w-8 h-8 border-2 border-[#01C38D] border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -60,11 +60,9 @@ export default function HomePage() {
 
   if (!user) return <LoginScreen />;
 
-  // All-time totals for hero card
   const totalIncome = transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const totalExpenses = transactions.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
 
-  // Period-filtered data
   const start = startOf(period);
   const filtered = period === "all" ? transactions : transactions.filter((t) => {
     const d = t.createdAt?.toDate?.();
@@ -80,19 +78,27 @@ export default function HomePage() {
     }, {});
 
   return (
-    <div className="min-h-screen bg-[#191E29] flex flex-col pb-24">
+    <div className="min-h-screen flex flex-col pb-24" style={{ background: "#191E29" }}>
       {/* Header */}
-      <div className="px-5 pt-14 pb-5 flex items-center justify-between">
+      <div className="px-5 pt-14 pb-4 flex items-center justify-between">
         <div>
-          <p className="text-[#606E79] text-sm">{greeting()}</p>
+          <p className="text-[#7A8EA0] text-sm">{greeting()}</p>
           <p className="text-white text-xl font-bold mt-0.5">
-            {user.displayName?.split(" ")[0] ?? "there"}
+            {user.displayName?.split(" ")[0] ?? "there"} 👋
           </p>
         </div>
         {user.photoURL ? (
-          <img src={user.photoURL} alt="" className="w-10 h-10 rounded-full object-cover ring-2 ring-[#2A3441]" />
+          <img
+            src={user.photoURL}
+            alt=""
+            className="w-10 h-10 rounded-full object-cover"
+            style={{ boxShadow: "0 0 0 2px rgba(1,195,141,0.4)" }}
+          />
         ) : (
-          <div className="w-10 h-10 rounded-full bg-[#132046] flex items-center justify-center text-white font-bold text-sm ring-2 ring-[#2A3441]">
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm"
+            style={{ background: "#132046", boxShadow: "0 0 0 2px rgba(1,195,141,0.4)" }}
+          >
             {user.displayName?.[0] ?? "?"}
           </div>
         )}
@@ -105,14 +111,17 @@ export default function HomePage() {
 
       {/* Period Tabs */}
       <div className="px-5 mb-4">
-        <div className="bg-[#132046] rounded-2xl p-1 flex">
+        <div className="flex gap-2">
           {PERIODS.map(({ key, label }) => (
             <button
               key={key}
               onClick={() => setPeriod(key)}
-              className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ${
-                period === key ? "bg-[#01C38D] text-[#191E29]" : "text-[#606E79]"
-              }`}
+              className="px-4 py-2 rounded-2xl text-xs font-semibold transition-all duration-200 active:scale-95 whitespace-nowrap"
+              style={{
+                background: period === key ? "#01C38D" : "rgba(255,255,255,0.06)",
+                color: period === key ? "#fff" : "#7A8EA0",
+                boxShadow: period === key ? "0 2px 12px rgba(1,195,141,0.35)" : "none",
+              }}
             >
               {label}
             </button>
@@ -120,45 +129,61 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Spending Breakdown */}
+      {/* Breakdown */}
       {Object.keys(categoryTotals).length > 0 && (
         <div className="px-5 mb-4">
           <BreakdownList categoryTotals={categoryTotals} totalExpenses={periodExpenses} />
         </div>
       )}
 
-      {/* Transaction History */}
+      {/* Transactions */}
       <div className="px-5">
-        <div className="bg-[#132046] rounded-3xl px-5 py-5">
+        <div className="rounded-3xl px-5 py-5" style={{ background: "#132046" }}>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-[#606E79] text-xs font-medium tracking-widest uppercase">Transactions</p>
+            <p className="text-[#7A8EA0] text-[11px] font-semibold tracking-widest uppercase">Transactions</p>
             {filtered.length > 0 && (
-              <span className="text-[#606E79] text-xs bg-[#191E29] px-2 py-0.5 rounded-full">{filtered.length}</span>
+              <span
+                className="text-[#7A8EA0] text-xs px-2 py-0.5 rounded-full"
+                style={{ background: "rgba(255,255,255,0.06)" }}
+              >
+                {filtered.length}
+              </span>
             )}
           </div>
 
           {filtered.length === 0 ? (
-            <div className="text-center py-10">
-              <p className="text-[#606E79] text-sm">No transactions</p>
-              <p className="text-[#2A3441] text-xs mt-1">Tap + to add one</p>
+            <div className="text-center py-12">
+              <div
+                className="w-14 h-14 rounded-3xl flex items-center justify-center mx-auto mb-3"
+                style={{ background: "rgba(1,195,141,0.1)" }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#01C38D" strokeWidth="1.8" strokeLinecap="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </div>
+              <p className="text-white text-sm font-semibold">No transactions</p>
+              <p className="text-[#7A8EA0] text-xs mt-1">Tap + to log your first one</p>
             </div>
           ) : (
-            <div className="divide-y divide-[#2A3441]">
-              {filtered.map((t) => (
-                <TransactionItem
+            <div style={{ borderTop: "0px" }}>
+              {filtered.map((t, i) => (
+                <div
                   key={t.id}
-                  transaction={t}
-                  onDelete={(id) => deleteTransaction(user.uid, id)}
-                />
+                  style={{ borderTop: i > 0 ? "1px solid rgba(255,255,255,0.05)" : "none" }}
+                >
+                  <TransactionItem
+                    transaction={t}
+                    onDelete={(id) => deleteTransaction(user.uid, id)}
+                  />
+                </div>
               ))}
             </div>
           )}
         </div>
       </div>
 
-      {/* Add Modal */}
       {showAdd && <AddModal userId={user.uid} onClose={() => setShowAdd(false)} />}
-
       <BottomNav onAddClick={() => setShowAdd(true)} />
     </div>
   );

@@ -25,7 +25,7 @@ export default function ProfilePage() {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen bg-[#191E29] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#191E29" }}>
         <div className="w-8 h-8 border-2 border-[#01C38D] border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -36,13 +36,14 @@ export default function ProfilePage() {
   const net = totalIncome - totalExpenses;
 
   return (
-    <div className="min-h-screen bg-[#191E29] flex flex-col pb-28">
+    <div className="min-h-screen flex flex-col pb-28" style={{ background: "#191E29" }}>
       {/* Header */}
       <div className="px-5 pt-14 pb-5 flex items-center justify-between">
         <h1 className="text-white text-xl font-bold">Profile</h1>
         <button
           onClick={() => router.push("/settings")}
-          className="w-9 h-9 rounded-full bg-[#132046] flex items-center justify-center text-[#606E79] active:scale-95 transition-transform"
+          className="w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+          style={{ background: "rgba(255,255,255,0.06)", color: "#7A8EA0" }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3" />
@@ -53,55 +54,76 @@ export default function ProfilePage() {
 
       <div className="flex flex-col gap-3 px-5">
         {/* User card */}
-        <div className="bg-[#132046] rounded-3xl p-5 flex items-center gap-4">
+        <div className="rounded-3xl p-5 flex items-center gap-4" style={{ background: "#132046" }}>
           {user.photoURL ? (
-            <img src={user.photoURL} alt="" className="w-14 h-14 rounded-full object-cover" />
+            <img
+              src={user.photoURL}
+              alt=""
+              className="w-14 h-14 rounded-full object-cover"
+              style={{ boxShadow: "0 0 0 2.5px rgba(1,195,141,0.35)" }}
+            />
           ) : (
-            <div className="w-14 h-14 rounded-full bg-[#191E29] flex items-center justify-center text-white font-bold text-xl">
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl"
+              style={{ background: "#191E29" }}
+            >
               {user.displayName?.[0] ?? "?"}
             </div>
           )}
           <div>
             <p className="text-white font-bold text-lg">{user.displayName}</p>
-            <p className="text-[#606E79] text-sm">{user.email}</p>
+            <p className="text-[#7A8EA0] text-sm">{user.email}</p>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="bg-[#132046] rounded-3xl p-6">
-          <p className="text-[#606E79] text-xs font-medium tracking-widest uppercase mb-2">Net Balance</p>
-          <p className={`text-[38px] font-bold leading-none mb-5 ${net < 0 ? "text-[#FF5A5F]" : "text-white"}`}>
+        <div
+          className="rounded-3xl p-6 relative overflow-hidden"
+          style={{ background: "linear-gradient(135deg, #0D1B3E 0%, #132046 60%, #1A2A52 100%)" }}
+        >
+          <div
+            className="absolute w-40 h-40 rounded-full blur-3xl pointer-events-none"
+            style={{ background: net >= 0 ? "rgba(1,195,141,0.15)" : "rgba(255,90,95,0.15)", top: "-20%", right: "-10%" }}
+          />
+          <p className="text-[#7A8EA0] text-[11px] font-semibold tracking-widest uppercase mb-2">Net Balance</p>
+          <p
+            className="text-[38px] font-bold leading-none mb-5"
+            style={{ color: net < 0 ? "#FF5A5F" : "#fff" }}
+          >
             {net < 0 ? "−" : ""}₹{Math.abs(net).toLocaleString("en-IN")}
           </p>
-          <div className="flex gap-6">
-            <div>
-              <p className="text-[#606E79] text-xs mb-1">Income</p>
-              <p className="text-[#01C38D] font-semibold tabular-nums">₹{totalIncome.toLocaleString("en-IN")}</p>
+          <div className="flex gap-4">
+            <div className="flex-1 rounded-2xl px-3 py-2.5" style={{ background: "rgba(1,195,141,0.12)" }}>
+              <p className="text-[#01C38D] text-[10px] font-bold tracking-widest uppercase mb-0.5">Income</p>
+              <p className="text-white font-bold tabular-nums text-sm">₹{totalIncome.toLocaleString("en-IN")}</p>
             </div>
-            <div className="w-px bg-[#2A3441]" />
-            <div>
-              <p className="text-[#606E79] text-xs mb-1">Spent</p>
-              <p className="text-white font-semibold tabular-nums">₹{totalExpenses.toLocaleString("en-IN")}</p>
+            <div className="flex-1 rounded-2xl px-3 py-2.5" style={{ background: "rgba(255,90,95,0.1)" }}>
+              <p className="text-[#FF5A5F] text-[10px] font-bold tracking-widest uppercase mb-0.5">Spent</p>
+              <p className="text-white font-bold tabular-nums text-sm">₹{totalExpenses.toLocaleString("en-IN")}</p>
             </div>
-            <div className="w-px bg-[#2A3441]" />
-            <div>
-              <p className="text-[#606E79] text-xs mb-1">Entries</p>
-              <p className="text-white font-semibold">{transactions.length}</p>
+            <div className="flex-1 rounded-2xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.06)" }}>
+              <p className="text-[#7A8EA0] text-[10px] font-bold tracking-widest uppercase mb-0.5">Entries</p>
+              <p className="text-white font-bold text-sm">{transactions.length}</p>
             </div>
           </div>
         </div>
 
         {/* History */}
-        <div className="bg-[#132046] rounded-3xl px-5 py-5">
-          <p className="text-[#606E79] text-xs font-medium tracking-widest uppercase mb-4">All Transactions</p>
+        <div className="rounded-3xl px-5 py-5" style={{ background: "#132046" }}>
+          <p className="text-[#7A8EA0] text-[11px] font-semibold tracking-widest uppercase mb-4">All Transactions</p>
           {transactions.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-[#606E79] text-sm">No transactions yet</p>
+            <div className="text-center py-10">
+              <p className="text-[#7A8EA0] text-sm">No transactions yet</p>
             </div>
           ) : (
-            <div className="divide-y divide-[#2A3441]">
-              {transactions.map((t) => (
-                <TransactionItem key={t.id} transaction={t} onDelete={(id) => deleteTransaction(user.uid, id)} />
+            <div>
+              {transactions.map((t, i) => (
+                <div
+                  key={t.id}
+                  style={{ borderTop: i > 0 ? "1px solid rgba(255,255,255,0.05)" : "none" }}
+                >
+                  <TransactionItem transaction={t} onDelete={(id) => deleteTransaction(user.uid, id)} />
+                </div>
               ))}
             </div>
           )}
