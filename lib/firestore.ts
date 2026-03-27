@@ -7,6 +7,7 @@ import {
   orderBy,
   onSnapshot,
   serverTimestamp,
+  getDocs,
   Timestamp,
 } from "firebase/firestore";
 import { getFirebaseDb } from "./firebase";
@@ -107,7 +108,6 @@ export async function deleteTransaction(userId: string, transactionId: string) {
 }
 
 export async function deleteAllTransactions(userId: string) {
-  const { getDocs } = await import("firebase/firestore");
   const snapshot = await getDocs(
     collection(getFirebaseDb(), "users", userId, "transactions")
   );
