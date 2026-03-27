@@ -13,7 +13,41 @@ import { getFirebaseDb } from "./firebase";
 
 export type TransactionType = "expense" | "income";
 
-export type Category = "Food" | "Travel" | "Bills" | "Lifestyle" | "Other";
+export type ExpenseCategory = "Food" | "Travel" | "Bills" | "Shopping" | "Lifestyle" | "Other";
+export type IncomeCategory = "Work" | "Project" | "Friends" | "Business" | "Gift" | "Other";
+export type Category = ExpenseCategory | IncomeCategory;
+
+export const EXPENSE_CATEGORIES: { label: ExpenseCategory; emoji: string }[] = [
+  { label: "Food", emoji: "🍔" },
+  { label: "Travel", emoji: "✈️" },
+  { label: "Bills", emoji: "💡" },
+  { label: "Shopping", emoji: "🛍️" },
+  { label: "Lifestyle", emoji: "✨" },
+  { label: "Other", emoji: "📦" },
+];
+
+export const INCOME_CATEGORIES: { label: IncomeCategory; emoji: string }[] = [
+  { label: "Work", emoji: "💼" },
+  { label: "Project", emoji: "🚀" },
+  { label: "Friends", emoji: "👫" },
+  { label: "Business", emoji: "📈" },
+  { label: "Gift", emoji: "🎁" },
+  { label: "Other", emoji: "💰" },
+];
+
+export const ALL_CATEGORY_EMOJI: Record<string, string> = {
+  Food: "🍔",
+  Travel: "✈️",
+  Bills: "💡",
+  Shopping: "🛍️",
+  Lifestyle: "✨",
+  Work: "💼",
+  Project: "🚀",
+  Friends: "👫",
+  Business: "📈",
+  Gift: "🎁",
+  Other: "📦",
+};
 
 export interface Transaction {
   id: string;

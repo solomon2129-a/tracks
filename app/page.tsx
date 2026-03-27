@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import LoginScreen from "@/components/LoginScreen";
 import AmountInput from "@/components/AmountInput";
@@ -14,16 +14,24 @@ type Step = 1 | 2 | 3;
 export default function AddPage() {
   const { user, loading } = useAuth();
   const [step, setStep] = useState<Step>(1);
+  const [direction, setDirection] = useState<"forward" | "back">("forward");
+  const [animKey, setAnimKey] = useState(0);
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<TransactionType | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  const goTo = useCallback((next: Step, dir: "forward" | "back") => {
+    setDirection(dir);
+    setAnimKey((k) => k + 1);
+    setStep(next);
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -31,10 +39,10 @@ export default function AddPage() {
   if (!user) return <LoginScreen />;
 
   const reset = () => {
-    setStep(1);
     setAmount("");
     setType(null);
     setCategory(null);
+    goTo(1, "back");
   };
 
   const handleSave = async () => {
@@ -47,53 +55,77 @@ export default function AddPage() {
         category,
       });
       setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
+      setTimeout(() => setSaved(false), 2000);
       reset();
     } finally {
       setSaving(false);
     }
   };
 
+  const handleTypeSelect = (t: TransactionType) => {
+    setType(t);
+    // Clear category if type changes
+    setCategory(null);
+  };
+
   return (
-    <div className="min-h-screen flex flex-col pb-16">
-      <div className="pt-14 pb-4 px-6">
-        <div className="flex items-center gap-2">
+    <div className="min-h-screen flex flex-col pb-24 bg-white">
+      {/* Header with step indicator */}
+      <div className="pt-16 px-6 pb-4">
+        <div className="flex items-center gap-1.5">
           {[1, 2, 3].map((s) => (
             <div
               key={s}
-              className={`h-1 rounded-full transition-all duration-300 ${
-                s === step ? "w-8 bg-indigo-600" : s < step ? "w-4 bg-indigo-300" : "w-4 bg-gray-100"
-              }`}
+              className="h-1 rounded-full transition-all duration-400"
+              style={{
+                width: s === step ? 28 : 12,
+                background: s === step ? "#111827" : s < step ? "#9CA3AF" : "#E5E7EB",
+              }}
             />
           ))}
+          <span className="ml-auto text-xs font-medium text-gray-300">
+            {step} / 3
+          </span>
         </div>
       </div>
 
-      {saved && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-2xl text-sm font-semibold shadow-lg z-50">
-          Saved!
-        </div>
-      )}
+      {/* Animated step content */}
+      <div
+        key={animKey}
+        className={`flex-1 flex flex-col ${direction === "forward" ? "step-forward" : "step-back"}`}
+      >
+        {step === 1 && (
+          <AmountInput
+            value={amount}
+            onChange={setAmount}
+            onNext={() => goTo(2, "forward")}
+          />
+        )}
+        {step === 2 && (
+          <TypeSelector
+            selected={type}
+            onSelect={handleTypeSelect}
+            onNext={() => goTo(3, "forward")}
+            onBack={() => goTo(1, "back")}
+          />
+        )}
+        {step === 3 && type && (
+          <CategorySelector
+            type={type}
+            selected={category}
+            onSelect={setCategory}
+            onSave={handleSave}
+            onBack={() => goTo(2, "back")}
+            saving={saving}
+          />
+        )}
+      </div>
 
-      {step === 1 && (
-        <AmountInput value={amount} onChange={setAmount} onNext={() => setStep(2)} />
-      )}
-      {step === 2 && (
-        <TypeSelector
-          selected={type}
-          onSelect={setType}
-          onNext={() => setStep(3)}
-          onBack={() => setStep(1)}
-        />
-      )}
-      {step === 3 && (
-        <CategorySelector
-          selected={category}
-          onSelect={setCategory}
-          onSave={handleSave}
-          onBack={() => setStep(2)}
-          saving={saving}
-        />
+      {/* Success toast */}
+      {saved && (
+        <div className="toast-in fixed top-8 left-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-2xl text-sm font-semibold shadow-xl flex items-center gap-2">
+          <span className="text-base">✓</span> Saved!
+        </div>
       )}
 
       <BottomNav />
