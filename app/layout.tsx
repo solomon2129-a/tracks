@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import AppShell from "@/components/AppShell";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,13 +23,15 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </head>
       <body className={`${inter.className} bg-[#191E29]`}>
-        <AuthProvider>
-          <AppShell>
-            <div className="max-w-md mx-auto min-h-screen bg-[#191E29] relative">
-              {children}
-            </div>
-          </AppShell>
-        </AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            <AppShell>
+              <div className="max-w-md mx-auto min-h-screen bg-[#191E29] relative">
+                {children}
+              </div>
+            </AppShell>
+          </AuthProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

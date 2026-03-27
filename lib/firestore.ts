@@ -76,13 +76,20 @@ export function subscribeToTransactions(
     orderBy("createdAt", "desc")
   );
 
-  return onSnapshot(q, (snapshot) => {
-    const transactions: Transaction[] = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Transaction[];
-    callback(transactions);
-  });
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const transactions: Transaction[] = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Transaction[];
+      callback(transactions);
+    },
+    (error) => {
+      console.warn("Firestore subscription error:", error.code);
+      // Silently fail — page stays usable, data just won't load until rules are set
+    }
+  );
 }
 
 export async function addTransaction(
