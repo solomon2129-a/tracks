@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 
 export default function LoginScreen() {
@@ -8,12 +9,14 @@ export default function LoginScreen() {
   return (
     <div className="min-h-screen bg-[#0C0C10] flex flex-col px-6 max-w-md mx-auto">
       <div className="flex-1 flex flex-col items-center justify-center gap-6">
-        <div className="w-24 h-24 bg-[#1A1A24] border border-[#2A2A38] rounded-[28px] flex items-center justify-center shadow-2xl">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#818CF8" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="1" x2="12" y2="23" />
-            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-          </svg>
-        </div>
+        <Image
+          src="/logotr.png"
+          alt="Tracksy"
+          width={96}
+          height={96}
+          className="rounded-[28px] shadow-2xl"
+          priority
+        />
         <div className="text-center">
           <h1 className="text-5xl font-bold text-white tracking-tight mb-2">Tracksy</h1>
           <p className="text-[#4A4A5A] text-lg">Log money in under 3 seconds.</p>
