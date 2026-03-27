@@ -13,41 +13,51 @@ import { getFirebaseDb } from "./firebase";
 
 export type TransactionType = "expense" | "income";
 
-export type ExpenseCategory = "Food" | "Travel" | "Bills" | "Shopping" | "Lifestyle" | "Other";
-export type IncomeCategory = "Work" | "Project" | "Friends" | "Business" | "Gift" | "Other";
+export type ExpenseCategory =
+  | "Food"
+  | "Groceries"
+  | "Transport"
+  | "Travel"
+  | "Bills"
+  | "Shopping"
+  | "Health"
+  | "Entertainment"
+  | "Cigarettes"
+  | "Lifestyle"
+  | "Other";
+
+export type IncomeCategory =
+  | "Work"
+  | "Project"
+  | "Friends"
+  | "Business"
+  | "Gift"
+  | "Other";
+
 export type Category = ExpenseCategory | IncomeCategory;
 
-export const EXPENSE_CATEGORIES: { label: ExpenseCategory; emoji: string }[] = [
-  { label: "Food", emoji: "🍔" },
-  { label: "Travel", emoji: "✈️" },
-  { label: "Bills", emoji: "💡" },
-  { label: "Shopping", emoji: "🛍️" },
-  { label: "Lifestyle", emoji: "✨" },
-  { label: "Other", emoji: "📦" },
+export const EXPENSE_CATEGORIES: { label: ExpenseCategory }[] = [
+  { label: "Food" },
+  { label: "Groceries" },
+  { label: "Transport" },
+  { label: "Travel" },
+  { label: "Bills" },
+  { label: "Shopping" },
+  { label: "Health" },
+  { label: "Entertainment" },
+  { label: "Cigarettes" },
+  { label: "Lifestyle" },
+  { label: "Other" },
 ];
 
-export const INCOME_CATEGORIES: { label: IncomeCategory; emoji: string }[] = [
-  { label: "Work", emoji: "💼" },
-  { label: "Project", emoji: "🚀" },
-  { label: "Friends", emoji: "👫" },
-  { label: "Business", emoji: "📈" },
-  { label: "Gift", emoji: "🎁" },
-  { label: "Other", emoji: "💰" },
+export const INCOME_CATEGORIES: { label: IncomeCategory }[] = [
+  { label: "Work" },
+  { label: "Project" },
+  { label: "Friends" },
+  { label: "Business" },
+  { label: "Gift" },
+  { label: "Other" },
 ];
-
-export const ALL_CATEGORY_EMOJI: Record<string, string> = {
-  Food: "🍔",
-  Travel: "✈️",
-  Bills: "💡",
-  Shopping: "🛍️",
-  Lifestyle: "✨",
-  Work: "💼",
-  Project: "🚀",
-  Friends: "👫",
-  Business: "📈",
-  Gift: "🎁",
-  Other: "📦",
-};
 
 export interface Transaction {
   id: string;

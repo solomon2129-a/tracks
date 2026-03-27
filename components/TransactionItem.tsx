@@ -1,6 +1,7 @@
 "use client";
 
-import { Transaction, ALL_CATEGORY_EMOJI } from "@/lib/firestore";
+import { Transaction } from "@/lib/firestore";
+import CategoryIcon from "./CategoryIcon";
 
 interface TransactionItemProps {
   transaction: Transaction;
@@ -20,10 +21,15 @@ export default function TransactionItem({ transaction, onDelete }: TransactionIt
 
   return (
     <div className="flex items-center gap-3 py-3.5">
-      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xl flex-shrink-0 ${
+      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${
         isIncome ? "bg-emerald-500/10" : "bg-red-500/10"
       }`}>
-        {ALL_CATEGORY_EMOJI[transaction.category] ?? "📦"}
+        <CategoryIcon
+          category={transaction.category}
+          size={18}
+          color={isIncome ? "#10B981" : "#EF4444"}
+          strokeWidth={1.8}
+        />
       </div>
 
       <div className="flex-1 min-w-0">
@@ -42,8 +48,7 @@ export default function TransactionItem({ transaction, onDelete }: TransactionIt
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6l-1 14H6L5 6" />
-              <path d="M10 11v6M14 11v6M9 6V4h6v2" />
+              <path d="M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" />
             </svg>
           </button>
         )}

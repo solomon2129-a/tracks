@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import AppShell from "@/components/AppShell";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,9 +23,11 @@ export default function RootLayout({
       </head>
       <body className={`${inter.className} bg-[#0C0C10]`}>
         <AuthProvider>
-          <div className="max-w-md mx-auto min-h-screen bg-[#0C0C10] relative">
-            {children}
-          </div>
+          <AppShell>
+            <div className="max-w-md mx-auto min-h-screen bg-[#0C0C10] relative">
+              {children}
+            </div>
+          </AppShell>
         </AuthProvider>
       </body>
     </html>
