@@ -481,7 +481,6 @@ export default function ProfilePage() {
                             key={di}
                             className="aspect-square rounded-lg flex items-center justify-center relative transition-all duration-150"
                             style={{ background: bg }}
-                            onClick={inMonth ? e => { e.stopPropagation(); openDay(date); } : undefined}
                           >
                             {isToday && (
                               <div className="absolute inset-0 rounded-lg"
