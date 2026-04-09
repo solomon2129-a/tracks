@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Tracksy uses local PIN-based auth (no Firebase Auth).
+    // Data is keyed by a device-local userId — allow all reads/writes.
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
