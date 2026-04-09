@@ -1,6 +1,8 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { getFirebaseAuth } from "@/lib/firebase";
 
 interface AuthContextType {
   userId: string | null;
@@ -26,16 +28,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isPinUnlocked, setIsPinUnlocked] = useState(false);
 
   useEffect(() => {
+    // Firebase Anonymous Auth persists in IndexedDB across reloads.
+    // When we have a stored userId that matches the Firebase UID, Firestore rules pass.
     const storedUserId = localStorage.getItem("tracksy_user_id");
-    if (storedUserId) {
-      setUserId(storedUserId);
-      setIsAuthenticated(true);
-    }
-    setLoading(false);
+
+    const unsubscribe = onAuthStateChanged(getFirebaseAuth(), (firebaseUser) => {
+      if (firebaseUser && storedUserId && firebaseUser.uid === storedUserId) {
+        // Returning user — Firebase auth restored, userId matches
+        setUserId(storedUserId);
+        setIsAuthenticated(true);
+      } else if (storedUserId && storedUserId.startsWith("user_")) {
+        // Legacy local-only userId (created before anonymous auth) — still load them in
+        setUserId(storedUserId);
+        setIsAuthenticated(true);
+      } else if (!storedUserId) {
+        // Fresh install — no account yet
+        setIsAuthenticated(false);
+      }
+      setLoading(false);
+    });
+
+    return unsubscribe;
   }, []);
 
   const signup = async (pin?: string) => {
-    const uid = `user_${Date.now()}`;
+    // Sign in anonymously to get a real Firebase UID — Firestore rules will pass
+    let uid: string;
+    try {
+      const credential = await signInAnonymously(getFirebaseAuth());
+      uid = credential.user.uid;
+    } catch {
+      // Fallback if Firebase is unavailable
+      uid = `local_${Date.now()}`;
+    }
+
     const pinToSet = pin || "0000";
     const hashedPin = await hashPin(pinToSet);
     localStorage.setItem("tracksy_user_id", uid);
@@ -51,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!storedUserId || !storedHash) throw new Error("No existing account found");
     setUserId(storedUserId);
     setIsAuthenticated(true);
-    // isPinUnlocked stays false — AppShell will go to PinVerification
+    // isPinUnlocked stays false — AppShell will route to PinVerification
   };
 
   const verifyPin = async (pin: string): Promise<boolean> => {
@@ -73,12 +99,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  /** Lock the app — just clears the in-memory unlock flag. Account stays intact. */
+  /** Lock the app — clears in-memory unlock flag only. Account stays. */
   const logout = () => {
     setIsPinUnlocked(false);
   };
 
-  /** Wipe account completely. Only call from "Reset Account" in Settings. */
+  /** Wipe account completely — only from Settings > Reset Account. */
   const resetAccount = () => {
     localStorage.removeItem("tracksy_user_id");
     localStorage.removeItem("tracksy_pin_hash");
