@@ -6,8 +6,9 @@ import { useAuth } from "@/context/AuthContext";
 import { deleteAllTransactions } from "@/lib/firestore";
 
 export default function SettingsPage() {
-  const { userId, changePin, logout } = useAuth();
+  const { userId, changePin, logout, resetAccount } = useAuth();
   const router = useRouter();
+  const [resetConfirm, setResetConfirm] = useState(false);
 
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
@@ -54,8 +55,17 @@ export default function SettingsPage() {
     setTimeout(() => setDeleted(false), 3000);
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLock = () => {
+    logout(); // just locks — keeps account intact
+  };
+
+  const handleReset = () => {
+    if (!resetConfirm) {
+      setResetConfirm(true);
+      setTimeout(() => setResetConfirm(false), 4000);
+      return;
+    }
+    resetAccount(); // wipes everything
     router.push("/");
   };
 
@@ -147,20 +157,37 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        {/* Sign out */}
+        {/* Lock */}
         <div className="rounded-2xl p-5" style={{ background: "#1A1A1A" }}>
-          <p className="text-white font-bold mb-1">Account</p>
-          <p className="text-[#555] text-xs mb-4">Sign out and return to the login screen.</p>
+          <p className="text-white font-bold mb-1">Lock App</p>
+          <p className="text-[#555] text-xs mb-4">Lock Tracksy. Your account and data stay safe — just re-enter your PIN to get back in.</p>
           <button
-            onClick={handleLogout}
+            onClick={handleLock}
             className="w-full py-3.5 rounded-2xl font-semibold text-sm active:scale-[0.97] transition-all"
             style={{
-              background: "rgba(244,63,94,0.08)",
-              border: "1px solid rgba(244,63,94,0.2)",
-              color: "#F43F5E",
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "#fff",
             }}
           >
-            Sign Out
+            Lock App
+          </button>
+        </div>
+
+        {/* Reset account */}
+        <div className="rounded-2xl p-5" style={{ background: "#1A1A1A" }}>
+          <p className="text-white font-bold mb-1">Reset Account</p>
+          <p className="text-[#555] text-xs mb-4">Permanently delete your account and all local data. This cannot be undone.</p>
+          <button
+            onClick={handleReset}
+            className="w-full py-3.5 rounded-2xl font-semibold text-sm active:scale-[0.97] transition-all"
+            style={{
+              background: resetConfirm ? "rgba(244,63,94,0.15)" : "rgba(255,255,255,0.04)",
+              border: `1px solid ${resetConfirm ? "rgba(244,63,94,0.4)" : "rgba(255,255,255,0.08)"}`,
+              color: resetConfirm ? "#F43F5E" : "#888",
+            }}
+          >
+            {resetConfirm ? "Tap again to confirm reset" : "Reset Account"}
           </button>
         </div>
       </div>

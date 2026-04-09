@@ -20,7 +20,7 @@ const BTN_DISABLED = {
 
 export default function HomePage() {
   const { userId, loading } = useAuth();
-  const [step, setStep] = useState<Step>(0);
+  const [step, setStep] = useState<Step>(1);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [animKey, setAnimKey] = useState(0);
   const [amount, setAmount] = useState("");
@@ -65,7 +65,7 @@ export default function HomePage() {
     setSelectedAccount(accounts.length > 0 ? accounts[0].id : "");
     setDirection("forward");
     setAnimKey(k => k + 1);
-    setStep(0);
+    setStep(1);
   }, [accounts]);
 
   const handleSave = async () => {

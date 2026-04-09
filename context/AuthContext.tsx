@@ -11,7 +11,10 @@ interface AuthContextType {
   login: () => Promise<void>;
   verifyPin: (pin: string) => Promise<boolean>;
   changePin: (currentPin: string, newPin: string) => Promise<boolean>;
+  /** Lock the app — shows PIN screen. Does NOT erase account. */
   logout: () => void;
+  /** Wipe everything — used only in Settings > Reset Account */
+  resetAccount: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -35,23 +38,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const uid = `user_${Date.now()}`;
     const pinToSet = pin || "0000";
     const hashedPin = await hashPin(pinToSet);
-
     localStorage.setItem("tracksy_user_id", uid);
     localStorage.setItem("tracksy_pin_hash", hashedPin);
     setUserId(uid);
     setIsAuthenticated(true);
+    setIsPinUnlocked(true);
   };
 
   const login = async () => {
-    const storedHash = localStorage.getItem("tracksy_pin_hash");
     const storedUserId = localStorage.getItem("tracksy_user_id");
-
-    if (!storedHash || !storedUserId) {
-      throw new Error("No existing account found");
-    }
-
+    const storedHash = localStorage.getItem("tracksy_pin_hash");
+    if (!storedUserId || !storedHash) throw new Error("No existing account found");
     setUserId(storedUserId);
     setIsAuthenticated(true);
+    // isPinUnlocked stays false — AppShell will go to PinVerification
   };
 
   const verifyPin = async (pin: string): Promise<boolean> => {
@@ -73,7 +73,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
+  /** Lock the app — just clears the in-memory unlock flag. Account stays intact. */
   const logout = () => {
+    setIsPinUnlocked(false);
+  };
+
+  /** Wipe account completely. Only call from "Reset Account" in Settings. */
+  const resetAccount = () => {
     localStorage.removeItem("tracksy_user_id");
     localStorage.removeItem("tracksy_pin_hash");
     setUserId(null);
@@ -82,7 +88,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ userId, loading, isAuthenticated, isPinUnlocked, signup, login, verifyPin, changePin, logout }}>
+    <AuthContext.Provider
+      value={{ userId, loading, isAuthenticated, isPinUnlocked, signup, login, verifyPin, changePin, logout, resetAccount }}
+    >
       {children}
     </AuthContext.Provider>
   );

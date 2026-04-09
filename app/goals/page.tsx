@@ -1,18 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import BottomNav from "@/components/BottomNav";
-import { subscribeToProfile, updateGoals, Goal } from "@/lib/firestore";
-import { Timestamp } from "firebase/firestore";
 
-/* ─── helpers ─── */
-
-function daysBetween(a: Date, b: Date) {
-  const msPerDay = 1000 * 60 * 60 * 24;
-  return Math.round((b.getTime() - a.getTime()) / msPerDay);
+/* ─── Local goal type (no Firebase Timestamps) ─── */
+export interface LocalGoal {
+  id: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  targetDateMs: number;   // Date.getTime()
+  createdAtMs: number;    // Date.getTime()
 }
 
+/* ─── localStorage helpers ─── */
+function goalsKey(userId: string) {
+  return `tracksy_goals_${userId}`;
+}
+function loadGoals(userId: string): LocalGoal[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(goalsKey(userId));
+    return raw ? (JSON.parse(raw) as LocalGoal[]) : [];
+  } catch {
+    return [];
+  }
+}
+function persistGoals(userId: string, goals: LocalGoal[]) {
+  localStorage.setItem(goalsKey(userId), JSON.stringify(goals));
+}
+
+/* ─── Calculation helpers ─── */
+function daysBetween(a: Date, b: Date) {
+  const ms = b.getTime() - a.getTime();
+  return Math.round(ms / (1000 * 60 * 60 * 24));
+}
 function today() {
   const d = new Date();
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -24,28 +47,18 @@ interface GoalStats {
   daysElapsed: number;
   remaining: number;
   progressPct: number;
-  adjustedDaily: number;   // what you must save per day NOW to still hit target
-  originalDaily: number;   // what you were supposed to save per day from the start
-  deficit: number;         // how much you're behind expected
+  adjustedDaily: number;
+  originalDaily: number;
+  deficit: number;
   isOverdue: boolean;
   isComplete: boolean;
   status: "complete" | "overdue" | "on-track" | "behind";
 }
 
-function calcStats(goal: Goal): GoalStats {
+function calcStats(goal: LocalGoal): GoalStats {
   const now = today();
-  const target = goal.targetDate?.toDate?.();
-  const created = goal.createdAt?.toDate?.() ?? now;
-
-  if (!target) {
-    return {
-      daysLeft: 0, totalDays: 0, daysElapsed: 0,
-      remaining: goal.targetAmount - goal.currentAmount,
-      progressPct: (goal.currentAmount / goal.targetAmount) * 100,
-      adjustedDaily: 0, originalDaily: 0, deficit: 0,
-      isOverdue: false, isComplete: false, status: "on-track",
-    };
-  }
+  const target = new Date(goal.targetDateMs);
+  const created = new Date(goal.createdAtMs);
 
   const daysLeft = Math.max(0, daysBetween(now, target));
   const totalDays = Math.max(1, daysBetween(created, target));
@@ -70,17 +83,16 @@ function calcStats(goal: Goal): GoalStats {
 }
 
 /* ─── Ring progress ─── */
-function RingProgress({ pct, size = 64, stroke = 5 }: { pct: number; size?: number; stroke?: number }) {
+function RingProgress({ pct, size = 60, stroke = 4 }: { pct: number; size?: number; stroke?: number }) {
   const r = (size - stroke * 2) / 2;
   const circ = 2 * Math.PI * r;
   const offset = circ - (Math.min(pct, 100) / 100) * circ;
-  const color = pct >= 100 ? "#22C55E" : "#FFFFFF";
   return (
     <svg width={size} height={size} style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={stroke} />
       <circle
         cx={size / 2} cy={size / 2} r={r} fill="none"
-        stroke={color} strokeWidth={stroke}
+        stroke={pct >= 100 ? "#22C55E" : "#FFFFFF"} strokeWidth={stroke}
         strokeDasharray={circ} strokeDashoffset={offset}
         strokeLinecap="round"
         style={{ transition: "stroke-dashoffset 0.5s ease" }}
@@ -94,15 +106,12 @@ function StatusBadge({ status, deficit }: { status: GoalStats["status"]; deficit
   const map = {
     complete: { label: "Complete", bg: "rgba(34,197,94,0.12)", color: "#22C55E" },
     overdue: { label: "Overdue", bg: "rgba(244,63,94,0.12)", color: "#F43F5E" },
-    "on-track": { label: "On Track", bg: "rgba(255,255,255,0.06)", color: "#888" },
+    "on-track": { label: "On Track", bg: "rgba(255,255,255,0.06)", color: "#666" },
     behind: { label: `₹${Math.round(deficit).toLocaleString("en-IN")} behind`, bg: "rgba(251,191,36,0.1)", color: "#FBBF24" },
   };
   const { label, bg, color } = map[status];
   return (
-    <span
-      className="text-[10px] font-bold px-2 py-1 rounded-full"
-      style={{ background: bg, color }}
-    >
+    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: bg, color }}>
       {label}
     </span>
   );
@@ -114,148 +123,138 @@ function GoalCard({
   onDelete,
   onLogSavings,
 }: {
-  goal: Goal;
+  goal: LocalGoal;
   onDelete: (id: string) => void;
-  onLogSavings: (id: string, amount: number) => void;
+  onLogSavings: (id: string, newTotal: number) => void;
 }) {
   const stats = calcStats(goal);
   const [expanded, setExpanded] = useState(false);
   const [logAmount, setLogAmount] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const handleLog = async () => {
+  const handleLog = () => {
     const amt = parseFloat(logAmount);
     if (!amt || amt <= 0) return;
     setSaving(true);
-    await onLogSavings(goal.id, goal.currentAmount + amt);
+    const newTotal = Math.min(goal.currentAmount + amt, goal.targetAmount);
+    onLogSavings(goal.id, newTotal);
     setLogAmount("");
     setExpanded(false);
     setSaving(false);
   };
 
-  const targetDate = goal.targetDate?.toDate?.();
+  const targetDate = new Date(goal.targetDateMs);
 
   return (
-    <div
-      className="rounded-2xl overflow-hidden"
-      style={{ background: "#1A1A1A" }}
-    >
-      {/* Top row */}
+    <div className="rounded-2xl overflow-hidden" style={{ background: "#1A1A1A" }}>
+      {/* Top */}
       <div className="p-4 flex items-center gap-3">
-        {/* Ring */}
         <div className="relative flex-shrink-0">
-          <RingProgress pct={stats.progressPct} size={60} stroke={4} />
+          <RingProgress pct={stats.progressPct} />
           <div
-            className="absolute inset-0 flex items-center justify-center text-[11px] font-bold"
+            className="absolute inset-0 flex items-center justify-center text-[10px] font-bold"
             style={{ color: stats.isComplete ? "#22C55E" : "#fff" }}
           >
             {Math.round(stats.progressPct)}%
           </div>
         </div>
-
-        {/* Info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2 mb-0.5">
+          <div className="flex items-center justify-between gap-2 mb-0.5 flex-wrap">
             <p className="text-white font-bold text-base truncate">{goal.name}</p>
             <StatusBadge status={stats.status} deficit={stats.deficit} />
           </div>
-          <p className="text-[#555] text-[11px]">
+          <p className="text-[#555] text-xs">
             ₹{goal.currentAmount.toLocaleString("en-IN")} of ₹{goal.targetAmount.toLocaleString("en-IN")}
           </p>
         </div>
       </div>
 
-      {/* Daily info strip */}
+      {/* Daily strip */}
       {!stats.isComplete && (
-        <div
-          className="mx-4 mb-4 rounded-xl p-3 flex items-center justify-between"
-          style={{ background: "rgba(255,255,255,0.04)" }}
-        >
+        <div className="mx-4 mb-4 rounded-xl p-3 flex items-center justify-between gap-4" style={{ background: "rgba(255,255,255,0.04)" }}>
           <div>
             <p className="text-[#555] text-[9px] font-semibold tracking-widest uppercase mb-0.5">
-              {stats.isOverdue ? "Overdue by" : "Save daily"}
+              {stats.isOverdue ? "Overdue" : "Save daily"}
             </p>
-            <p className="text-white font-bold text-lg leading-none">
+            <p className="text-white font-bold text-xl leading-none">
               {stats.isOverdue
-                ? `${daysBetween(targetDate!, today())} days`
+                ? "Passed"
                 : `₹${Math.ceil(stats.adjustedDaily).toLocaleString("en-IN")}`}
             </p>
+            {stats.status === "behind" && (
+              <p className="text-[#555] text-[9px] line-through mt-0.5">
+                was ₹{Math.ceil(stats.originalDaily).toLocaleString("en-IN")}
+              </p>
+            )}
           </div>
           <div className="text-right">
-            <p className="text-[#555] text-[9px] font-semibold tracking-widest uppercase mb-0.5">
-              {stats.daysLeft > 0 ? "Days left" : "Deadline"}
-            </p>
+            <p className="text-[#555] text-[9px] font-semibold tracking-widest uppercase mb-0.5">Deadline</p>
             <p className="text-white font-semibold text-sm leading-none">
-              {stats.daysLeft > 0
-                ? `${stats.daysLeft}d`
-                : targetDate?.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) ?? "—"}
+              {targetDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
+            </p>
+            <p className="text-[#555] text-[9px] mt-0.5">
+              {stats.daysLeft > 0 ? `${stats.daysLeft} days left` : "Today"}
             </p>
           </div>
-          {stats.status === "behind" && (
-            <div className="text-right">
-              <p className="text-[#555] text-[9px] font-semibold tracking-widest uppercase mb-0.5">Original</p>
-              <p className="text-[#555] text-sm leading-none line-through">
-                ₹{Math.ceil(stats.originalDaily).toLocaleString("en-IN")}
-              </p>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Log savings + delete row */}
+      {/* Actions */}
       <div className="px-4 pb-4 flex gap-2">
         {!stats.isComplete && (
           <button
             onClick={() => setExpanded(e => !e)}
             className="flex-1 py-3 rounded-xl text-sm font-semibold active:scale-[0.97] transition-all"
             style={{
-              background: expanded ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)",
+              background: expanded ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)",
               color: "#fff",
+              border: "1px solid rgba(255,255,255,0.08)",
             }}
           >
-            {expanded ? "Cancel" : "Log Savings"}
+            {expanded ? "Cancel" : "+ Log Savings"}
           </button>
         )}
         <button
           onClick={() => onDelete(goal.id)}
           className="w-11 h-11 rounded-xl flex items-center justify-center active:scale-90 transition-transform flex-shrink-0"
-          style={{ background: "rgba(244,63,94,0.08)" }}
+          style={{ background: "rgba(244,63,94,0.07)", border: "1px solid rgba(244,63,94,0.12)" }}
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F43F5E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F43F5E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="3 6 5 6 21 6" />
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
           </svg>
         </button>
       </div>
 
-      {/* Expand: log savings */}
+      {/* Log savings input */}
       {expanded && (
         <div className="px-4 pb-4 flex gap-2 step-forward">
           <div
             className="flex-1 flex items-center gap-2 rounded-xl px-4"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
           >
-            <span className="text-[#555] text-base">₹</span>
+            <span className="text-[#555]">₹</span>
             <input
               type="number"
               inputMode="decimal"
               placeholder="Amount saved"
               value={logAmount}
               onChange={e => setLogAmount(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleLog()}
               autoFocus
-              className="flex-1 bg-transparent outline-none text-white text-base py-3"
+              className="flex-1 bg-transparent outline-none text-white py-3 text-base"
             />
           </div>
           <button
             onClick={handleLog}
             disabled={!logAmount || parseFloat(logAmount) <= 0 || saving}
-            className="px-5 py-3 rounded-xl font-bold text-sm active:scale-[0.97] transition-all"
+            className="px-5 rounded-xl font-bold text-sm active:scale-[0.97] transition-all"
             style={{
               background: logAmount && parseFloat(logAmount) > 0 ? "#fff" : "rgba(255,255,255,0.07)",
               color: logAmount && parseFloat(logAmount) > 0 ? "#000" : "#444",
             }}
           >
-            {saving ? "…" : "Add"}
+            Add
           </button>
         </div>
       )}
@@ -263,19 +262,17 @@ function GoalCard({
   );
 }
 
-/* ─── Add Goal Sheet ─── */
-function AddGoalSheet({
+/* ─── Add Goal Form ─── */
+function AddGoalForm({
   onSave,
   onCancel,
 }: {
-  onSave: (data: { name: string; targetAmount: number; targetDate: Date }) => Promise<void>;
+  onSave: (g: Omit<LocalGoal, "id" | "createdAtMs" | "currentAmount">) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [dateStr, setDateStr] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
 
   const minDate = (() => {
     const d = new Date();
@@ -285,27 +282,28 @@ function AddGoalSheet({
 
   const canSubmit = name.trim().length > 0 && parseFloat(amount) > 0 && dateStr.length > 0;
 
-  const handleSubmit = async () => {
+  const dailyPreview = (() => {
+    if (!canSubmit) return null;
+    const deadline = new Date(dateStr + "T23:59:59");
+    const daysLeft = Math.max(1, daysBetween(today(), deadline));
+    return Math.ceil(parseFloat(amount) / daysLeft);
+  })();
+
+  const handleSubmit = () => {
     if (!canSubmit) return;
-    setError("");
-    setSaving(true);
-    try {
-      await onSave({
-        name: name.trim(),
-        targetAmount: parseFloat(amount),
-        targetDate: new Date(dateStr),
-      });
-    } catch {
-      setError("Failed to create goal. Try again.");
-      setSaving(false);
-    }
+    const deadline = new Date(dateStr + "T23:59:59");
+    onSave({
+      name: name.trim(),
+      targetAmount: parseFloat(amount),
+      targetDateMs: deadline.getTime(),
+    });
   };
 
   return (
     <div className="modal-enter mx-5 mb-4 rounded-2xl p-5" style={{ background: "#1A1A1A" }}>
       <p className="text-white font-bold text-base mb-4">New Goal</p>
-
       <div className="flex flex-col gap-3">
+
         <div>
           <p className="text-[#555] text-[10px] font-semibold uppercase tracking-widest mb-1.5">Goal name</p>
           <input
@@ -320,21 +318,16 @@ function AddGoalSheet({
         </div>
 
         <div>
-          <p className="text-[#555] text-[10px] font-semibold uppercase tracking-widest mb-1.5">Target amount</p>
-          <div
-            className="flex items-center gap-2 rounded-xl px-4"
+          <p className="text-[#555] text-[10px] font-semibold uppercase tracking-widest mb-1.5">Target amount (₹)</p>
+          <input
+            type="number"
+            inputMode="decimal"
+            placeholder="10000"
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+            className="w-full rounded-xl px-4 py-3.5 text-white text-sm outline-none"
             style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
-          >
-            <span className="text-[#555] text-base">₹</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              placeholder="0"
-              value={amount}
-              onChange={e => setAmount(e.target.value)}
-              className="flex-1 bg-transparent outline-none text-white text-sm py-3.5"
-            />
-          </div>
+          />
         </div>
 
         <div>
@@ -353,44 +346,34 @@ function AddGoalSheet({
           />
         </div>
 
-        {/* Preview daily amount */}
-        {canSubmit && (() => {
-          const deadline = new Date(dateStr);
-          const now = today();
-          const daysLeft = Math.max(1, daysBetween(now, deadline));
-          const daily = parseFloat(amount) / daysLeft;
-          return (
-            <div
-              className="rounded-xl p-3 flex items-center justify-between"
-              style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.12)" }}
-            >
-              <p className="text-[#22C55E] text-xs font-semibold">Save per day</p>
-              <p className="text-[#22C55E] font-bold text-sm">₹{Math.ceil(daily).toLocaleString("en-IN")}</p>
-            </div>
-          );
-        })()}
+        {dailyPreview !== null && (
+          <div
+            className="rounded-xl p-3 flex items-center justify-between"
+            style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.12)" }}
+          >
+            <p className="text-[#22C55E] text-sm font-semibold">Save per day</p>
+            <p className="text-[#22C55E] font-bold">₹{dailyPreview.toLocaleString("en-IN")}</p>
+          </div>
+        )}
 
-        {error && <p className="text-[#F43F5E] text-xs">{error}</p>}
-
-        <div className="flex gap-2 mt-1">
+        <div className="flex gap-2 pt-1">
           <button
             onClick={onCancel}
-            className="flex-1 py-3.5 rounded-xl font-semibold text-sm"
+            className="flex-1 py-3.5 rounded-xl font-semibold text-sm active:scale-[0.97]"
             style={{ background: "rgba(255,255,255,0.05)", color: "#888" }}
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!canSubmit || saving}
+            disabled={!canSubmit}
             className="flex-1 py-3.5 rounded-xl font-bold text-sm active:scale-[0.97] transition-all"
             style={{
               background: canSubmit ? "#fff" : "rgba(255,255,255,0.07)",
               color: canSubmit ? "#000" : "#444",
-              opacity: saving ? 0.7 : 1,
             }}
           >
-            {saving ? "Creating…" : "Create Goal"}
+            Create Goal
           </button>
         </div>
       </div>
@@ -401,44 +384,37 @@ function AddGoalSheet({
 /* ─── Page ─── */
 export default function GoalsPage() {
   const { userId, loading } = useAuth();
-  const [goals, setGoals] = useState<Goal[]>([]);
+  const [goals, setGoals] = useState<LocalGoal[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
 
+  // Load from localStorage on mount
   useEffect(() => {
     if (!userId) return;
-    return subscribeToProfile(userId, (profile) => {
-      setGoals(profile.goals ?? []);
-    });
+    setGoals(loadGoals(userId));
   }, [userId]);
 
-  const handleAddGoal = async (data: { name: string; targetAmount: number; targetDate: Date }) => {
-    if (!userId) return;
-    const newGoal: Goal = {
+  const save = useCallback((updated: LocalGoal[]) => {
+    setGoals(updated);
+    if (userId) persistGoals(userId, updated);
+  }, [userId]);
+
+  const handleAdd = (data: Omit<LocalGoal, "id" | "createdAtMs" | "currentAmount">) => {
+    const newGoal: LocalGoal = {
+      ...data,
       id: `goal_${Date.now()}`,
-      name: data.name,
-      targetAmount: data.targetAmount,
       currentAmount: 0,
-      targetDate: Timestamp.fromDate(data.targetDate),
-      priority: "medium",
-      createdAt: Timestamp.now(),
+      createdAtMs: Date.now(),
     };
-    await updateGoals(userId, [...goals, newGoal]);
+    save([...goals, newGoal]);
     setShowForm(false);
   };
 
-  const handleDelete = async (goalId: string) => {
-    if (!userId) return;
-    setDeleting(goalId);
-    await updateGoals(userId, goals.filter(g => g.id !== goalId));
-    setDeleting(null);
+  const handleDelete = (id: string) => {
+    save(goals.filter(g => g.id !== id));
   };
 
-  const handleLogSavings = async (goalId: string, newAmount: number) => {
-    if (!userId) return;
-    await updateGoals(userId, goals.map(g =>
-      g.id === goalId ? { ...g, currentAmount: Math.min(newAmount, g.targetAmount) } : g
-    ));
+  const handleLogSavings = (id: string, newTotal: number) => {
+    save(goals.map(g => g.id === id ? { ...g, currentAmount: newTotal } : g));
   };
 
   if (loading || !userId) {
@@ -449,13 +425,17 @@ export default function GoalsPage() {
     );
   }
 
-  /* Summary stats across all active goals */
   const activeGoals = goals.filter(g => g.currentAmount < g.targetAmount);
-  const totalRemaining = activeGoals.reduce((s, g) => s + (g.targetAmount - g.currentAmount), 0);
   const totalDailyNeeded = activeGoals.reduce((s, g) => {
     const stats = calcStats(g);
     return s + (stats.daysLeft > 0 ? stats.adjustedDaily : 0);
   }, 0);
+
+  const sorted = [...goals].sort((a, b) => {
+    const sa = calcStats(a), sb = calcStats(b);
+    if (sa.isComplete !== sb.isComplete) return sa.isComplete ? 1 : -1;
+    return sa.daysLeft - sb.daysLeft;
+  });
 
   return (
     <div className="min-h-screen flex flex-col pb-safe" style={{ background: "#0F0F0F" }}>
@@ -465,14 +445,16 @@ export default function GoalsPage() {
           <div>
             <p className="text-white text-2xl font-bold tracking-tight">Goals</p>
             <p className="text-[#555] text-sm mt-0.5">
-              {goals.length === 0 ? "Set a target, save daily" : `${goals.length} goal${goals.length !== 1 ? "s" : ""} · ₹${Math.ceil(totalDailyNeeded).toLocaleString("en-IN")}/day needed`}
+              {goals.length === 0
+                ? "Set a target, save daily"
+                : `${activeGoals.length} active · ₹${Math.ceil(totalDailyNeeded).toLocaleString("en-IN")}/day`}
             </p>
           </div>
           {!showForm && (
             <button
               onClick={() => setShowForm(true)}
               className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-              style={{ background: "#FFFFFF" }}
+              style={{ background: "#fff" }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round">
                 <line x1="12" y1="5" x2="12" y2="19" />
@@ -482,12 +464,14 @@ export default function GoalsPage() {
           )}
         </div>
 
-        {/* Summary strip (only when there are active goals) */}
+        {/* Summary strip */}
         {activeGoals.length > 0 && (
           <div className="mt-4 flex gap-3">
             <div className="flex-1 rounded-2xl p-4" style={{ background: "#1A1A1A" }}>
               <p className="text-[#555] text-[9px] font-semibold tracking-widest uppercase mb-1">Still needed</p>
-              <p className="text-white font-bold text-lg">₹{Math.round(totalRemaining).toLocaleString("en-IN")}</p>
+              <p className="text-white font-bold text-lg">
+                ₹{activeGoals.reduce((s, g) => s + (g.targetAmount - g.currentAmount), 0).toLocaleString("en-IN")}
+              </p>
             </div>
             <div className="flex-1 rounded-2xl p-4" style={{ background: "#1A1A1A" }}>
               <p className="text-[#555] text-[9px] font-semibold tracking-widest uppercase mb-1">Save today</p>
@@ -497,63 +481,45 @@ export default function GoalsPage() {
         )}
       </div>
 
-      {/* Add goal form */}
+      {/* Form */}
       {showForm && (
-        <AddGoalSheet
-          onSave={handleAddGoal}
-          onCancel={() => setShowForm(false)}
-        />
+        <AddGoalForm onSave={handleAdd} onCancel={() => setShowForm(false)} />
       )}
 
-      {/* Goals list */}
+      {/* List */}
       <div className="flex-1 px-5 flex flex-col gap-3">
         {goals.length === 0 && !showForm ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center gap-5 py-20">
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center"
-              style={{ background: "#1A1A1A" }}
-            >
+          <div className="flex-1 flex flex-col items-center justify-center text-center gap-5 py-16">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "#1A1A1A" }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <circle cx="12" cy="12" r="6" />
+                <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" />
                 <circle cx="12" cy="12" r="2" fill="#444" />
               </svg>
             </div>
             <div>
               <p className="text-white font-bold text-base mb-1">No goals yet</p>
               <p className="text-[#444] text-sm leading-relaxed">
-                Set a savings goal with a deadline.<br />Tracksy tells you exactly how much<br />to save every day.
+                Set a savings target with a deadline.<br />
+                Tracksy shows you exactly how much<br />to save every single day.
               </p>
             </div>
             <button
               onClick={() => setShowForm(true)}
-              className="px-6 py-3.5 rounded-2xl font-bold text-sm active:scale-[0.97] transition-all"
+              className="px-6 py-3.5 rounded-2xl font-bold text-sm active:scale-[0.97]"
               style={{ background: "#fff", color: "#000" }}
             >
               Create First Goal
             </button>
           </div>
         ) : (
-          goals
-            .sort((a, b) => {
-              const sa = calcStats(a);
-              const sb = calcStats(b);
-              // Completed last, then sort by days left ascending
-              if (sa.isComplete !== sb.isComplete) return sa.isComplete ? 1 : -1;
-              return sa.daysLeft - sb.daysLeft;
-            })
-            .map(goal => (
-              <div
-                key={goal.id}
-                style={{ opacity: deleting === goal.id ? 0.4 : 1, transition: "opacity 0.2s" }}
-              >
-                <GoalCard
-                  goal={goal}
-                  onDelete={handleDelete}
-                  onLogSavings={handleLogSavings}
-                />
-              </div>
-            ))
+          sorted.map(goal => (
+            <GoalCard
+              key={goal.id}
+              goal={goal}
+              onDelete={handleDelete}
+              onLogSavings={handleLogSavings}
+            />
+          ))
         )}
       </div>
 
