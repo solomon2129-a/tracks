@@ -451,6 +451,54 @@ export default function GoalsPage() {
     return s + (stats.daysLeft > 0 ? stats.adjustedDaily : 0);
   }, 0);
 
+  const totalSaved  = goals.reduce((s, g) => s + g.currentAmount, 0);
+  const totalTarget = goals.reduce((s, g) => s + g.targetAmount, 0);
+  const overallPct  = totalTarget > 0 ? Math.min(100, (totalSaved / totalTarget) * 100) : 0;
+  const behindGoals = goals.filter(g => calcStats(g).status === "behind").length;
+  const overdueGoals = goals.filter(g => calcStats(g).isOverdue).length;
+  const completedGoals = goals.filter(g => calcStats(g).isComplete).length;
+
+  function getMotivation(): { msg: string; sub: string; color: string } {
+    if (goals.length === 0) return { msg: "", sub: "", color: "" };
+    if (completedGoals === goals.length) return {
+      msg: "You actually did it. Every. Single. Goal. 🔥",
+      sub: "Set harder ones. You're built different.",
+      color: "#22C55E",
+    };
+    if (overdueGoals > 0) return {
+      msg: `${overdueGoals} goal${overdueGoals > 1 ? "s are" : " is"} overdue. That stings.`,
+      sub: "Stop scrolling Instagram and fix this. Seriously.",
+      color: "#F43F5E",
+    };
+    if (behindGoals > 0 && overallPct < 20) return {
+      msg: `₹${totalSaved.toLocaleString("en-IN")} saved. That's it??`,
+      sub: "You've barely started. Stop bullshitting yourself and save something today.",
+      color: "#F43F5E",
+    };
+    if (behindGoals > 0) return {
+      msg: `You're ₹${(totalTarget - totalSaved).toLocaleString("en-IN")} behind. Wake up.`,
+      sub: "You knew this would happen. Now do something about it.",
+      color: "#FBBF24",
+    };
+    if (overallPct >= 80) return {
+      msg: `${Math.round(overallPct)}% there. Don't you dare slow down now.`,
+      sub: "You're so close it's stupid not to finish. Lock in.",
+      color: "#22C55E",
+    };
+    if (overallPct >= 50) return {
+      msg: `Halfway there. ₹${totalSaved.toLocaleString("en-IN")} saved.`,
+      sub: "The second half always hurts more. That's exactly why you do it.",
+      color: "#fff",
+    };
+    return {
+      msg: `₹${totalSaved.toLocaleString("en-IN")} of ₹${totalTarget.toLocaleString("en-IN")} saved.`,
+      sub: `Save ₹${Math.ceil(totalDailyNeeded).toLocaleString("en-IN")} today. No excuses. None.`,
+      color: "#fff",
+    };
+  }
+
+  const mot = goals.length > 0 ? getMotivation() : null;
+
   const sorted = [...goals].sort((a, b) => {
     const sa = calcStats(a), sb = calcStats(b);
     if (sa.isComplete !== sb.isComplete) return sa.isComplete ? 1 : -1;
@@ -500,6 +548,33 @@ export default function GoalsPage() {
           </div>
         )}
       </div>
+
+      {/* Motivation banner */}
+      {mot && (
+        <div className="px-5 mb-1 fade-up">
+          <div
+            className="rounded-2xl px-5 py-4"
+            style={{
+              background: mot.color === "#F43F5E"
+                ? "rgba(244,63,94,0.07)"
+                : mot.color === "#FBBF24"
+                ? "rgba(251,191,36,0.07)"
+                : mot.color === "#22C55E"
+                ? "rgba(34,197,94,0.07)"
+                : "rgba(255,255,255,0.04)",
+              border: `1px solid ${
+                mot.color === "#F43F5E" ? "rgba(244,63,94,0.18)"
+                : mot.color === "#FBBF24" ? "rgba(251,191,36,0.18)"
+                : mot.color === "#22C55E" ? "rgba(34,197,94,0.18)"
+                : "rgba(255,255,255,0.08)"
+              }`,
+            }}
+          >
+            <p className="font-bold text-base leading-snug mb-1" style={{ color: mot.color }}>{mot.msg}</p>
+            <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.4)" }}>{mot.sub}</p>
+          </div>
+        </div>
+      )}
 
       {/* Form */}
       {showForm && (
