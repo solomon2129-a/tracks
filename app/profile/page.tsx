@@ -1,144 +1,162 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import BottomNav from "@/components/BottomNav";
 import TransactionItem from "@/components/TransactionItem";
 import { subscribeToTransactions, deleteTransaction, Transaction } from "@/lib/firestore";
 
+/* ─── Local goal type ─── */
 interface LocalGoal {
   id: string; name: string; targetAmount: number;
   currentAmount: number; targetDateMs: number; createdAtMs: number;
 }
-function loadGoals(userId: string): LocalGoal[] {
-  try { const r = localStorage.getItem(`tracksy_goals_${userId}`); return r ? JSON.parse(r) : []; }
+function loadGoals(uid: string): LocalGoal[] {
+  try { const r = localStorage.getItem(`tracksy_goals_${uid}`); return r ? JSON.parse(r) : []; }
   catch { return []; }
 }
 
 /* ─── Types ─── */
 type CalView = "month" | "week" | "day";
+type Dir = "forward" | "back";
 
-/* ─── Date helpers ─── */
-function startOfDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-function endOfDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
-}
-function startOfWeekFromDate(d: Date) {
-  const s = startOfDay(d);
+/* ─── Date utils ─── */
+const sod = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const eod = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+const isSameDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+function sundayOfWeek(d: Date): Date {
+  const s = sod(d);
   s.setDate(s.getDate() - s.getDay());
   return s;
 }
-function filterRange(txns: Transaction[], from: Date, to: Date) {
+
+function addDays(d: Date, n: number): Date {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+function filterRange(txns: Transaction[], from: Date, to: Date): Transaction[] {
   return txns.filter(t => {
     const d = t.createdAt?.toDate?.();
     return d && d >= from && d < to;
   });
 }
 
-/* ─── Calendar builder ─── */
-function buildCalendarWeeks(year: number, month: number): (number | null)[][] {
-  const firstDow = new Date(year, month, 1).getDay();
+/* ─── Calendar grid builder ─── */
+// Returns array of weeks. Each week = 7 Date objects (Sun…Sat).
+// Days outside the current month are still valid dates (needed for week continuity).
+function buildMonthGrid(year: number, month: number): Date[][] {
+  const firstOfMonth = new Date(year, month, 1);
+  const startSunday = sundayOfWeek(firstOfMonth);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const weeks: (number | null)[][] = [];
-  let week: (number | null)[] = Array(firstDow).fill(null);
-  for (let day = 1; day <= daysInMonth; day++) {
-    week.push(day);
-    if (week.length === 7) { weeks.push(week); week = []; }
-  }
-  if (week.length > 0) {
-    while (week.length < 7) week.push(null);
-    weeks.push(week);
-  }
-  return weeks;
+  const totalCells = firstOfMonth.getDay() + daysInMonth;
+  const totalWeeks = Math.ceil(totalCells / 7);
+  return Array.from({ length: totalWeeks }, (_, wi) =>
+    Array.from({ length: 7 }, (_, di) => addDays(startSunday, wi * 7 + di))
+  );
 }
 
 /* ─── Day totals map ─── */
-function getDayTotals(txns: Transaction[], year: number, month: number) {
-  const map: Record<number, { expense: number; income: number }> = {};
+type DayTotals = { expense: number; income: number };
+
+function buildDayMap(txns: Transaction[]): Map<string, DayTotals> {
+  const map = new Map<string, DayTotals>();
   for (const t of txns) {
     const d = t.createdAt?.toDate?.();
-    if (!d || d.getFullYear() !== year || d.getMonth() !== month) continue;
-    const day = d.getDate();
-    if (!map[day]) map[day] = { expense: 0, income: 0 };
-    if (t.type === "expense") map[day].expense += t.amount;
-    else map[day].income += t.amount;
+    if (!d) continue;
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const curr = map.get(key) ?? { expense: 0, income: 0 };
+    if (t.type === "expense") curr.expense += t.amount;
+    else curr.income += t.amount;
+    map.set(key, curr);
   }
   return map;
 }
 
-/* ─── Heat-map color ─── */
-function heatColor(expense: number, income: number, maxExpense: number): string {
-  if (expense === 0 && income === 0) return "rgba(255,255,255,0.05)";
-  if (expense > 0) {
-    const r = Math.min(expense / Math.max(maxExpense, 1), 1);
-    if (r < 0.25) return "rgba(244,63,94,0.14)";
-    if (r < 0.5)  return "rgba(244,63,94,0.28)";
-    if (r < 0.75) return "rgba(244,63,94,0.44)";
-    return "rgba(244,63,94,0.62)";
+function dayKey(d: Date): string {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+/* ─── Color logic ─── */
+// No activity → very muted grey
+// Income > Expense → soft green
+// Expense ≥ Income (with activity) → red (intensity by ratio)
+function dayBg(t: DayTotals | undefined): string {
+  if (!t || (t.expense === 0 && t.income === 0)) return "rgba(255,255,255,0.05)";
+  if (t.income > t.expense) {
+    const intensity = Math.min((t.income - t.expense) / Math.max(t.income, 1), 1);
+    return intensity > 0.5 ? "rgba(34,197,94,0.28)" : "rgba(34,197,94,0.16)";
   }
-  return "rgba(34,197,94,0.18)";
+  const ratio = Math.min(t.expense / Math.max(t.expense + t.income, 1), 1);
+  if (ratio < 0.6)  return "rgba(244,63,94,0.18)";
+  if (ratio < 0.8)  return "rgba(244,63,94,0.32)";
+  return "rgba(244,63,94,0.50)";
+}
+
+function dayTextColor(t: DayTotals | undefined, isToday: boolean): string {
+  if (isToday) return "#fff";
+  if (!t || (t.expense === 0 && t.income === 0)) return "#3A3A3A";
+  return "rgba(255,255,255,0.85)";
 }
 
 /* ─── Stats ─── */
 function calcStats(txns: Transaction[]) {
-  const income = txns.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
-  const saved = txns.filter(t => t.type === "expense" && t.category === "Savings").reduce((s, t) => s + t.amount, 0);
+  const income   = txns.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const saved    = txns.filter(t => t.type === "expense" && t.category === "Savings").reduce((s, t) => s + t.amount, 0);
   const expenses = txns.filter(t => t.type === "expense" && t.category !== "Savings").reduce((s, t) => s + t.amount, 0);
   return { income, expenses, saved, net: income - expenses - saved };
 }
 
-/* ─── Grouped transactions ─── */
+/* ─── Group by date ─── */
 function groupByDate(txns: Transaction[]) {
   const map = new Map<string, { label: string; dateObj: Date; items: Transaction[] }>();
   for (const t of txns) {
     const d = t.createdAt?.toDate?.();
     if (!d) continue;
     const key = d.toDateString();
-    if (!map.has(key)) {
-      map.set(key, {
-        label: d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }),
-        dateObj: d,
-        items: [],
-      });
-    }
+    if (!map.has(key)) map.set(key, {
+      label: d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }),
+      dateObj: d, items: [],
+    });
     map.get(key)!.items.push(t);
   }
   return Array.from(map.values()).sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime());
 }
 
-/* ─── Fmt ─── */
 const fmt = (n: number) => `₹${Math.abs(n).toLocaleString("en-IN")}`;
+const DOW_LETTER = ["S", "M", "T", "W", "T", "F", "S"];
+const DOW_LABEL  = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /* ─── Stats Row ─── */
 function StatsRow({ income, expenses, saved, net }: { income: number; expenses: number; saved: number; net: number }) {
   return (
-    <div className="rounded-2xl px-5 py-4" style={{ background: "#1A1A1A" }}>
+    <div className="rounded-2xl px-5 py-4 fade-up" style={{ background: "#1A1A1A" }}>
       <p className="text-[#444] text-[9px] font-semibold tracking-widest uppercase mb-1">Net Balance</p>
-      <p className="font-bold leading-none mb-4 tracking-tight" style={{ fontSize: 34, color: net < 0 ? "#F43F5E" : "#fff" }}>
-        {net < 0 ? "−" : "+"}{fmt(net)}
+      <p className="font-bold leading-none mb-4 tracking-tight"
+        style={{ fontSize: 34, color: net < 0 ? "#F43F5E" : net > 0 ? "#fff" : "#555" }}>
+        {net < 0 ? "−" : net > 0 ? "+" : ""}{fmt(net)}
       </p>
-      <div className="flex gap-3 flex-wrap">
-        <div className="flex-1 min-w-0">
+      <div className="flex gap-3">
+        <div className="flex-1">
           <p className="text-[#444] text-[9px] uppercase tracking-widest mb-0.5">Income</p>
           <p className="text-[#22C55E] font-bold text-sm tabular-nums">+{fmt(income)}</p>
         </div>
         <div className="w-px self-stretch" style={{ background: "rgba(255,255,255,0.06)" }} />
-        <div className="flex-1 min-w-0">
+        <div className="flex-1">
           <p className="text-[#444] text-[9px] uppercase tracking-widest mb-0.5">Spent</p>
           <p className="text-white font-bold text-sm tabular-nums">−{fmt(expenses)}</p>
         </div>
-        {saved > 0 && (
-          <>
-            <div className="w-px self-stretch" style={{ background: "rgba(255,255,255,0.06)" }} />
-            <div className="flex-1 min-w-0">
-              <p className="text-[#444] text-[9px] uppercase tracking-widest mb-0.5">Saved</p>
-              <p className="font-bold text-sm tabular-nums" style={{ color: "#22C55E" }}>−{fmt(saved)}</p>
-            </div>
-          </>
-        )}
+        {saved > 0 && <>
+          <div className="w-px self-stretch" style={{ background: "rgba(255,255,255,0.06)" }} />
+          <div className="flex-1">
+            <p className="text-[#444] text-[9px] uppercase tracking-widest mb-0.5">Saved</p>
+            <p className="font-bold text-sm tabular-nums" style={{ color: "#22C55E" }}>−{fmt(saved)}</p>
+          </div>
+        </>}
       </div>
     </div>
   );
@@ -146,13 +164,11 @@ function StatsRow({ income, expenses, saved, net }: { income: number; expenses: 
 
 /* ─── Transaction list ─── */
 function TxnList({ txns, userId }: { txns: Transaction[]; userId: string }) {
-  if (txns.length === 0) {
-    return <p className="text-center text-[#333] text-sm py-8">No transactions</p>;
-  }
-  const groups = groupByDate(txns);
+  if (txns.length === 0)
+    return <p className="text-center text-[#333] text-sm py-8">No transactions this day</p>;
   return (
     <div className="flex flex-col gap-3">
-      {groups.map(group => (
+      {groupByDate(txns).map(group => (
         <div key={group.label}>
           <p className="text-[#333] text-[10px] font-semibold tracking-widest uppercase mb-2">{group.label}</p>
           <div className="rounded-2xl px-4" style={{ background: "#1A1A1A" }}>
@@ -168,178 +184,42 @@ function TxnList({ txns, userId }: { txns: Transaction[]; userId: string }) {
   );
 }
 
-/* ─── Profile Drawer ─── */
-function ProfileDrawer({
-  open,
-  onClose,
-  user,
-  onChangePin,
-  onForgotPin,
-  onSignOut,
-  onReset,
-}: {
-  open: boolean;
-  onClose: () => void;
-  user: { email?: string | null; metadata?: { creationTime?: string } } | null;
-  onChangePin: () => void;
-  onForgotPin: () => void;
-  onSignOut: () => void;
-  onReset: () => void;
-}) {
-  const [resetConfirm, setResetConfirm] = useState(false);
-
-  if (!open) return null;
-
-  const email = user?.email || "";
-  const initial = email.charAt(0).toUpperCase() || "?";
-  const memberSince = (() => {
-    try {
-      const t = user?.metadata?.creationTime;
-      if (!t) return "—";
-      return new Date(t).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
-    } catch { return "—"; }
-  })();
-
-  const handleReset = () => {
-    if (!resetConfirm) { setResetConfirm(true); setTimeout(() => setResetConfirm(false), 4000); return; }
-    onReset();
-  };
-
-  const Row = ({ icon, label, color = "#fff", onClick }: { icon: React.ReactNode; label: string; color?: string; onClick: () => void }) => (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center gap-4 py-4 active:opacity-60 transition-opacity text-left"
-      style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
-    >
-      <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.06)" }}>
-        {icon}
-      </div>
-      <span className="font-semibold text-sm" style={{ color }}>{label}</span>
-      <svg className="ml-auto" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="9 18 15 12 9 6" />
-      </svg>
-    </button>
-  );
-
-  return (
-    <>
-      {/* Overlay */}
-      <div
-        className="fixed inset-0 z-50 fade-in"
-        style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
-        onClick={onClose}
-      />
-      {/* Sheet */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-50 max-w-md mx-auto sheet-up rounded-t-3xl pb-safe"
-        style={{ background: "#141414", paddingBottom: "calc(32px + env(safe-area-inset-bottom, 0px))" }}
-      >
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-5">
-          <div className="w-10 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.15)" }} />
-        </div>
-
-        <div className="px-6">
-          {/* Avatar + info */}
-          <div className="flex items-center gap-4 mb-6">
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{ background: "#2A2A2A" }}
-            >
-              <span className="text-white font-bold text-2xl">{initial}</span>
-            </div>
-            <div className="min-w-0">
-              <p className="text-white font-bold text-base truncate">{email}</p>
-              <p className="text-[#444] text-xs mt-0.5">Member since {memberSince}</p>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <Row
-            onClick={onChangePin}
-            label="Change PIN"
-            icon={
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-            }
-          />
-          <Row
-            onClick={onForgotPin}
-            label="Forgot PIN"
-            icon={
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-            }
-          />
-          <Row
-            onClick={onSignOut}
-            label="Sign Out"
-            icon={
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
-            }
-          />
-          <Row
-            onClick={handleReset}
-            label={resetConfirm ? "Tap again to confirm reset" : "Reset Account"}
-            color={resetConfirm ? "#F43F5E" : "#F43F5E"}
-            icon={
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F43F5E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" />
-              </svg>
-            }
-          />
-        </div>
-      </div>
-    </>
-  );
-}
-
 /* ─── Goals strip ─── */
 function GoalsStrip({ goals }: { goals: LocalGoal[] }) {
   const active = goals.filter(g => g.currentAmount < g.targetAmount);
   if (active.length === 0) return null;
-  const totalSaved = goals.reduce((s, g) => s + g.currentAmount, 0);
+  const totalSaved  = goals.reduce((s, g) => s + g.currentAmount, 0);
   const totalTarget = goals.reduce((s, g) => s + g.targetAmount, 0);
-  const overallPct = Math.min(100, (totalSaved / totalTarget) * 100);
-
+  const pct = Math.min(100, (totalSaved / Math.max(totalTarget, 1)) * 100);
   return (
-    <div className="rounded-2xl p-4 fade-up" style={{ background: "#1A1A1A" }}>
+    <div className="rounded-2xl p-4" style={{ background: "#1A1A1A" }}>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-[#444] text-[9px] font-semibold tracking-widest uppercase">Goals</p>
-        <p className="text-[#444] text-[9px] font-semibold">{active.length} active</p>
+        <p className="text-[#444] text-[9px] font-semibold tracking-widest uppercase">Goals Progress</p>
+        <p className="text-[#444] text-[9px]">{active.length} active</p>
       </div>
-      {/* Overall bar */}
       <div className="h-1.5 rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.06)" }}>
-        <div
-          className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${overallPct}%`, background: "#22C55E" }}
-        />
+        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: "#22C55E" }} />
       </div>
-      <div className="flex items-center justify-between">
-        <p className="text-white font-bold text-sm tabular-nums">₹{totalSaved.toLocaleString("en-IN")} saved</p>
-        <p className="text-[#444] text-xs tabular-nums">of ₹{totalTarget.toLocaleString("en-IN")}</p>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-white font-bold text-sm">₹{totalSaved.toLocaleString("en-IN")} saved</p>
+        <p className="text-[#444] text-xs">of ₹{totalTarget.toLocaleString("en-IN")}</p>
       </div>
-      {/* Individual goals */}
-      <div className="flex flex-col gap-2 mt-3">
+      <div className="flex flex-col gap-2">
         {active.slice(0, 3).map(g => {
-          const pct = Math.min(100, (g.currentAmount / g.targetAmount) * 100);
-          const daysLeft = Math.max(0, Math.round((g.targetDateMs - Date.now()) / 86400000));
+          const gPct = Math.min(100, (g.currentAmount / Math.max(g.targetAmount, 1)) * 100);
+          const dLeft = Math.max(0, Math.round((g.targetDateMs - Date.now()) / 86400000));
           return (
             <div key={g.id} className="flex items-center gap-3">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex justify-between mb-1">
                   <p className="text-white text-xs font-semibold truncate">{g.name}</p>
-                  <p className="text-[#444] text-[9px] ml-2 flex-shrink-0">{daysLeft}d left</p>
+                  <p className="text-[#444] text-[9px] ml-2 flex-shrink-0">{dLeft}d left</p>
                 </div>
                 <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                  <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "#22C55E" }} />
+                  <div className="h-full rounded-full" style={{ width: `${gPct}%`, background: "#22C55E" }} />
                 </div>
               </div>
-              <p className="text-[#555] text-[10px] font-semibold tabular-nums flex-shrink-0">{Math.round(pct)}%</p>
+              <p className="text-[#555] text-[10px] font-semibold tabular-nums">{Math.round(gPct)}%</p>
             </div>
           );
         })}
@@ -348,20 +228,92 @@ function GoalsStrip({ goals }: { goals: LocalGoal[] }) {
   );
 }
 
-/* ─── Page ─── */
-const DOW = ["S", "M", "T", "W", "T", "F", "S"];
+/* ─── Profile Drawer ─── */
+function ProfileDrawer({ open, onClose, user, onChangePin, onForgotPin, onSignOut, onReset }: {
+  open: boolean; onClose: () => void;
+  user: { email?: string | null; metadata?: { creationTime?: string } } | null;
+  onChangePin: () => void; onForgotPin: () => void; onSignOut: () => void; onReset: () => void;
+}) {
+  const [resetConfirm, setResetConfirm] = useState(false);
+  if (!open) return null;
+  const email = user?.email || "";
+  const initial = email.charAt(0).toUpperCase() || "?";
+  const memberSince = (() => {
+    try { const t = user?.metadata?.creationTime; return t ? new Date(t).toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : "—"; }
+    catch { return "—"; }
+  })();
+  const handleReset = () => {
+    if (!resetConfirm) { setResetConfirm(true); setTimeout(() => setResetConfirm(false), 4000); return; }
+    onReset();
+  };
+  const Row = ({ icon, label, color = "#fff", onClick }: { icon: React.ReactNode; label: string; color?: string; onClick: () => void }) => (
+    <button onClick={onClick} className="w-full flex items-center gap-4 py-4 active:opacity-60 transition-opacity text-left"
+      style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.06)" }}>{icon}</div>
+      <span className="font-semibold text-sm flex-1" style={{ color }}>{label}</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+    </button>
+  );
+  return (
+    <>
+      <div className="fixed inset-0 z-50 fade-in" style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }} onClick={onClose} />
+      <div className="fixed bottom-0 left-0 right-0 z-50 max-w-md mx-auto sheet-up rounded-t-3xl"
+        style={{ background: "#141414", paddingBottom: "calc(32px + env(safe-area-inset-bottom, 0px))" }}>
+        <div className="flex justify-center pt-3 pb-5"><div className="w-10 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.15)" }} /></div>
+        <div className="px-6">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "#2A2A2A" }}>
+              <span className="text-white font-bold text-2xl">{initial}</span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-white font-bold text-base truncate">{email}</p>
+              <p className="text-[#444] text-xs mt-0.5">Member since {memberSince}</p>
+            </div>
+          </div>
+          <Row onClick={onChangePin} label="Change PIN" icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>} />
+          <Row onClick={onForgotPin} label="Forgot PIN" icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>} />
+          <Row onClick={onSignOut} label="Sign Out" icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>} />
+          <Row onClick={handleReset} label={resetConfirm ? "Tap again to confirm" : "Reset Account"} color="#F43F5E"
+            icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F43F5E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>} />
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ────────────────────────────────────────
+   Page
+──────────────────────────────────────── */
+const CHEVRON_LEFT = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="15 18 9 12 15 6" />
+  </svg>
+);
+const CHEVRON_RIGHT = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 18 15 12 9 6" />
+  </svg>
+);
 
 export default function ProfilePage() {
-  const { userId, loading, user, lock, logout, forgotPassword, resetAccount } = useAuth();
+  const { userId, loading, user, logout, forgotPassword, resetAccount } = useAuth();
   const router = useRouter();
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [goals, setGoals] = useState<LocalGoal[]>([]);
-  const [calView, setCalView] = useState<CalView>("month");
-  const [viewDate, setViewDate] = useState(new Date());
-  const [selectedWeekStart, setSelectedWeekStart] = useState<Date | null>(null);
-  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [calKey, setCalKey] = useState(0);
+  const [goals, setGoals]               = useState<LocalGoal[]>([]);
+  const [calView, setCalView]           = useState<CalView>("month");
+  const [animDir, setAnimDir]           = useState<Dir>("forward");
+  const [animKey, setAnimKey]           = useState(0);
+  const [drawerOpen, setDrawerOpen]     = useState(false);
+
+  // Month being browsed
+  const [viewDate, setViewDate] = useState(() => {
+    const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  // Week start (Sunday) being viewed
+  const [weekStart, setWeekStart] = useState(() => sundayOfWeek(new Date()));
+  // Selected day
+  const [selDay, setSelDay] = useState<Date>(() => sod(new Date()));
 
   useEffect(() => {
     if (!userId) return;
@@ -369,50 +321,31 @@ export default function ProfilePage() {
     return subscribeToTransactions(userId, setTransactions);
   }, [userId]);
 
-  const navigate = useCallback((view: CalView, key?: number) => {
+  /* ── Navigation helpers ── */
+  function go(view: CalView, dir: Dir) {
+    setAnimDir(dir);
+    setAnimKey(k => k + 1);
     setCalView(view);
-    setCalKey(k => k + 1);
-  }, []);
+  }
 
-  const goToWeek = (weekStart: Date) => {
-    setSelectedWeekStart(weekStart);
-    navigate("week");
-  };
+  function openWeek(ws: Date) { setWeekStart(ws); go("week", "forward"); }
+  function openDay(d: Date)   { setSelDay(sod(d)); go("day", "forward"); }
+  function goBack()           { calView === "day" ? go("week", "back") : go("month", "back"); }
 
-  const goToDay = (date: Date) => {
-    setSelectedDay(date);
-    const ws = startOfWeekFromDate(date);
-    setSelectedWeekStart(ws);
-    navigate("day");
-  };
+  /* ── Week navigation ── */
+  function prevWeek() { setWeekStart(w => addDays(w, -7)); setAnimKey(k => k + 1); setAnimDir("back"); }
+  function nextWeek() {
+    const nw = addDays(weekStart, 7);
+    if (nw <= new Date()) { setWeekStart(nw); setAnimKey(k => k + 1); setAnimDir("forward"); }
+  }
+  const isCurrentOrFutureWeek = addDays(weekStart, 7) > new Date();
 
-  const goBack = () => {
-    if (calView === "day") navigate("week");
-    else if (calView === "week") navigate("month");
-  };
-
-  const prevMonth = () => setViewDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
-  const nextMonth = () => {
-    const next = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
-    if (next <= new Date()) setViewDate(next);
-  };
-
-  const handleForgotPin = async () => {
-    if (!user?.email) return;
-    setDrawerOpen(false);
-    try { await forgotPassword(user.email); } catch { /* ignore */ }
-    alert(`Password reset email sent to ${user.email}`);
-  };
-
-  const handleSignOut = async () => {
-    setDrawerOpen(false);
-    await logout();
-  };
-
-  const handleReset = () => {
-    setDrawerOpen(false);
-    resetAccount();
-  };
+  /* ── Month navigation ── */
+  function prevMonth() { setViewDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1)); }
+  function nextMonth() {
+    const n = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
+    if (n <= new Date()) setViewDate(n);
+  }
 
   if (loading || !userId) {
     return (
@@ -422,275 +355,254 @@ export default function ProfilePage() {
     );
   }
 
-  const now = new Date();
-  const viewYear = viewDate.getFullYear();
+  const now       = new Date();
+  const viewYear  = viewDate.getFullYear();
   const viewMonth = viewDate.getMonth();
+  const isThisMonth = viewYear === now.getFullYear() && viewMonth === now.getMonth();
 
-  // ── Data per view ──
-  const monthStart = new Date(viewYear, viewMonth, 1);
-  const monthEnd = new Date(viewYear, viewMonth + 1, 1);
-  const monthTxns = filterRange(transactions, monthStart, monthEnd);
-  const dayTotals = getDayTotals(transactions, viewYear, viewMonth);
-  const maxExpense = Math.max(...Object.values(dayTotals).map(d => d.expense), 1);
-  const calWeeks = buildCalendarWeeks(viewYear, viewMonth);
-
-  // Week view data
-  const weekTxns = selectedWeekStart
-    ? filterRange(transactions, selectedWeekStart, new Date(selectedWeekStart.getTime() + 7 * 86400000))
-    : [];
-
-  // Day view data
-  const dayTxns = selectedDay
-    ? filterRange(transactions, startOfDay(selectedDay), endOfDay(selectedDay))
-    : [];
+  /* ── Build data ── */
+  const dayMap      = buildDayMap(transactions);
+  const calGrid     = buildMonthGrid(viewYear, viewMonth);
+  const monthTxns   = filterRange(transactions, new Date(viewYear, viewMonth, 1), new Date(viewYear, viewMonth + 1, 1));
+  const weekEnd     = addDays(weekStart, 7);
+  const weekTxns    = filterRange(transactions, weekStart, weekEnd);
+  const dayTxns     = filterRange(transactions, selDay, eod(selDay));
 
   const viewStats = calView === "day" ? calcStats(dayTxns)
     : calView === "week" ? calcStats(weekTxns)
     : calcStats(monthTxns);
 
-  const isCurrentMonth = viewYear === now.getFullYear() && viewMonth === now.getMonth();
-  const isNextMonthAllowed = !isCurrentMonth;
+  const weekLabel = `${weekStart.toLocaleDateString("en-IN", { month: "short", day: "numeric" })} – ${addDays(weekStart, 6).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}`;
+  const dayLabel  = selDay.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" });
+
+  const animClass = animDir === "forward" ? "cal-slide-forward" : "cal-slide-back";
 
   return (
     <div className="min-h-screen flex flex-col pb-safe" style={{ background: "#0F0F0F" }}>
 
       {/* ── Header ── */}
-      <div className="px-5 pt-14 pb-4 flex items-center justify-between">
+      <div className="px-5 pt-14 pb-3 flex items-center justify-between">
         <div>
           <p className="text-white font-bold text-2xl tracking-tight">Spending</p>
           <p className="text-[#444] text-sm mt-0.5">Track where your money goes</p>
         </div>
-        <button
-          onClick={() => setDrawerOpen(true)}
+        <button onClick={() => setDrawerOpen(true)}
           className="w-10 h-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-          style={{ background: "#1A1A1A" }}
-        >
+          style={{ background: "#1A1A1A" }}>
           <span className="text-white font-bold text-base leading-none">
             {(user?.email?.charAt(0) || "?").toUpperCase()}
           </span>
         </button>
       </div>
 
-      {/* ── Calendar section ── */}
-      <div className="flex flex-col gap-3 px-5 flex-1">
+      {/* ── Nav bar (back / title / week arrows) ── */}
+      <div className="px-5 flex items-center justify-between h-10 mb-1">
 
-        {/* Month nav header */}
-        <div className="flex items-center justify-between">
-          {calView !== "month" ? (
-            <button
-              onClick={goBack}
-              className="flex items-center gap-1.5 active:scale-95 transition-transform"
-              style={{ color: "#888" }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-              <span className="text-sm font-semibold">
-                {calView === "day" ? "Week" : "Month"}
-              </span>
+        {/* Left: back button or month arrows */}
+        {calView === "month" ? (
+          <div className="flex items-center gap-2">
+            <button onClick={prevMonth} className="w-8 h-8 rounded-xl flex items-center justify-center active:scale-90 transition-transform"
+              style={{ background: "#1A1A1A", color: "#fff" }}>
+              {CHEVRON_LEFT}
             </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={prevMonth}
-                className="w-8 h-8 rounded-xl flex items-center justify-center active:scale-90"
-                style={{ background: "#1A1A1A" }}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="15 18 9 12 15 6" />
-                </svg>
-              </button>
-              <p className="text-white font-semibold text-sm min-w-[120px] text-center">
-                {viewDate.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
-              </p>
-              <button
-                onClick={nextMonth}
-                className="w-8 h-8 rounded-xl flex items-center justify-center active:scale-90 transition-opacity"
-                style={{ background: "#1A1A1A", opacity: isNextMonthAllowed ? 1 : 0.25 }}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </button>
-            </div>
-          )}
-
-          {calView !== "month" && (
-            <p className="text-[#555] text-sm font-semibold">
-              {calView === "week" && selectedWeekStart
-                ? `${selectedWeekStart.toLocaleDateString("en-IN", { month: "short", day: "numeric" })} – ${new Date(selectedWeekStart.getTime() + 6 * 86400000).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}`
-                : calView === "day" && selectedDay
-                ? selectedDay.toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric" })
-                : ""}
+            <p className="text-white font-semibold text-sm w-32 text-center">
+              {viewDate.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
             </p>
-          )}
-        </div>
+            <button onClick={nextMonth}
+              className="w-8 h-8 rounded-xl flex items-center justify-center active:scale-90 transition-transform"
+              style={{ background: "#1A1A1A", color: "#fff", opacity: isThisMonth ? 0.25 : 1 }}>
+              {CHEVRON_RIGHT}
+            </button>
+          </div>
+        ) : (
+          <button onClick={goBack}
+            className="flex items-center gap-1.5 px-3 h-8 rounded-xl active:scale-95 transition-transform"
+            style={{ background: "#1A1A1A", color: "#888" }}>
+            {CHEVRON_LEFT}
+            <span className="text-sm font-semibold">{calView === "day" ? "Week" : "Month"}</span>
+          </button>
+        )}
 
-        {/* ── Calendar body ── */}
-        <div key={calKey} className="fade-in">
+        {/* Center / right: title or week nav */}
+        {calView === "week" && (
+          <div className="flex items-center gap-2">
+            <button onClick={prevWeek}
+              className="w-8 h-8 rounded-xl flex items-center justify-center active:scale-90 transition-transform"
+              style={{ background: "#1A1A1A", color: "#fff" }}>
+              {CHEVRON_LEFT}
+            </button>
+            <p className="text-[#666] text-xs font-semibold w-28 text-center">{weekLabel}</p>
+            <button onClick={nextWeek}
+              className="w-8 h-8 rounded-xl flex items-center justify-center active:scale-90 transition-transform"
+              style={{ background: "#1A1A1A", color: "#fff", opacity: isCurrentOrFutureWeek ? 0.25 : 1 }}>
+              {CHEVRON_RIGHT}
+            </button>
+          </div>
+        )}
+        {calView === "day" && (
+          <p className="text-[#666] text-xs font-semibold">{dayLabel}</p>
+        )}
+        {calView === "month" && <div />}
+      </div>
 
-          {/* Month view */}
+      {/* ── Animated calendar body ── */}
+      <div className="flex flex-col gap-3 px-5 flex-1">
+        <div key={animKey} className={animClass}>
+
+          {/* ── MONTH VIEW ── */}
           {calView === "month" && (
-            <div className="rounded-2xl overflow-hidden" style={{ background: "#1A1A1A" }}>
-              {/* DOW headers */}
-              <div className="grid grid-cols-7 px-3 pt-3 pb-1">
-                {DOW.map((d, i) => (
-                  <div key={i} className="flex items-center justify-center">
-                    <span className="text-[10px] font-semibold" style={{ color: "#3A3A3A" }}>{d}</span>
-                  </div>
-                ))}
-              </div>
-              {/* Weeks */}
-              <div className="flex flex-col gap-1 px-3 pb-3">
-                {calWeeks.map((week, wi) => {
-                  const weekStart = (() => {
-                    const firstDay = week.find(d => d !== null);
-                    if (firstDay === null || firstDay === undefined) return null;
-                    return new Date(viewYear, viewMonth, firstDay as number - (week.indexOf(firstDay)));
-                  })();
-                  return (
+            <>
+              <div className="rounded-2xl overflow-hidden" style={{ background: "#1A1A1A" }}>
+                {/* DOW row */}
+                <div className="grid grid-cols-7 px-2 pt-3 pb-1">
+                  {DOW_LETTER.map((l, i) => (
+                    <div key={i} className="flex items-center justify-center">
+                      <span className="text-[10px] font-bold" style={{ color: "#2E2E2E" }}>{l}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Weeks — click row → week view */}
+                <div className="flex flex-col px-2 pb-2" style={{ gap: 3 }}>
+                  {calGrid.map((week, wi) => (
                     <div
                       key={wi}
-                      className="grid grid-cols-7 gap-1 rounded-xl cursor-pointer active:opacity-70 transition-opacity"
-                      onClick={() => {
-                        // Find first valid day in this week
-                        const firstDay = week.find(d => d !== null);
-                        if (firstDay) {
-                          const d = new Date(viewYear, viewMonth, firstDay as number);
-                          const ws = new Date(d);
-                          ws.setDate(ws.getDate() - week.indexOf(firstDay));
-                          goToWeek(ws);
-                        }
-                      }}
+                      className="grid grid-cols-7 rounded-xl cursor-pointer active:opacity-60 transition-opacity"
+                      style={{ gap: 3 }}
+                      onClick={() => openWeek(week[0])}
                     >
-                      {week.map((day, di) => {
-                        const isToday = day !== null && isCurrentMonth && day === now.getDate();
-                        const totals = day ? dayTotals[day] : null;
-                        const bg = totals ? heatColor(totals.expense, totals.income, maxExpense) : "transparent";
+                      {week.map((date, di) => {
+                        const inMonth = date.getMonth() === viewMonth;
+                        const isToday = isSameDay(date, now);
+                        const totals  = inMonth ? dayMap.get(dayKey(date)) : undefined;
+                        const bg      = inMonth ? dayBg(totals) : "transparent";
                         return (
                           <div
                             key={di}
                             className="aspect-square rounded-lg flex items-center justify-center relative transition-all duration-150"
-                            style={{ background: day ? bg : "transparent" }}
-                            onClick={day ? (e) => { e.stopPropagation(); goToDay(new Date(viewYear, viewMonth, day)); } : undefined}
+                            style={{ background: bg }}
+                            onClick={inMonth ? e => { e.stopPropagation(); openDay(date); } : undefined}
                           >
                             {isToday && (
-                              <div className="absolute inset-0 rounded-lg" style={{ border: "1.5px solid rgba(255,255,255,0.5)" }} />
+                              <div className="absolute inset-0 rounded-lg"
+                                style={{ border: "1.5px solid rgba(255,255,255,0.55)" }} />
                             )}
-                            {day && (
-                              <span
-                                className="text-xs font-semibold"
-                                style={{ color: isToday ? "#fff" : totals?.expense ? "rgba(255,255,255,0.9)" : "#444" }}
-                              >
-                                {day}
+                            {inMonth && (
+                              <span className="text-[11px] font-semibold leading-none"
+                                style={{ color: dayTextColor(totals, isToday) }}>
+                                {date.getDate()}
                               </span>
-                            )}
-                            {(totals?.income ?? 0) > 0 && (totals?.expense ?? 0) === 0 && (
-                              <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ background: "#22C55E" }} />
                             )}
                           </div>
                         );
                       })}
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center gap-4 px-4 pt-2 pb-3"
+                  style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(244,63,94,0.45)" }} />
+                    <span className="text-[9px] text-[#444] font-semibold">Spent more</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(34,197,94,0.25)" }} />
+                    <span className="text-[9px] text-[#444] font-semibold">Earned more</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(255,255,255,0.05)" }} />
+                    <span className="text-[9px] text-[#444] font-semibold">No activity</span>
+                  </div>
+                </div>
               </div>
 
-              {/* Legend */}
-              <div className="flex items-center gap-4 px-4 pb-3 pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(244,63,94,0.5)" }} />
-                  <span className="text-[9px] text-[#444] font-semibold">High spend</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-sm" style={{ background: "rgba(34,197,94,0.18)" }} />
-                  <span className="text-[9px] text-[#444] font-semibold">Income only</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-sm" style={{ border: "1.5px solid rgba(255,255,255,0.4)" }} />
-                  <span className="text-[9px] text-[#444] font-semibold">Today</span>
-                </div>
-              </div>
-            </div>
+              <StatsRow {...viewStats} />
+              {monthTxns.length === 0 && (
+                <p className="text-center text-[#2A2A2A] text-sm py-2">No transactions this month</p>
+              )}
+              {goals.length > 0 && <GoalsStrip goals={goals} />}
+            </>
           )}
 
-          {/* Week view */}
-          {calView === "week" && selectedWeekStart && (
-            <div className="rounded-2xl overflow-hidden" style={{ background: "#1A1A1A" }}>
-              <div className="grid grid-cols-7 gap-1 p-3">
-                {Array.from({ length: 7 }, (_, i) => {
-                  const d = new Date(selectedWeekStart.getTime() + i * 86400000);
-                  const totals = getDayTotals(transactions, d.getFullYear(), d.getMonth())[d.getDate()];
-                  const bg = totals ? heatColor(totals.expense, totals.income, maxExpense) : "rgba(255,255,255,0.04)";
-                  const isToday = d.toDateString() === now.toDateString();
-                  const dayLabels = ["S", "M", "T", "W", "T", "F", "S"];
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => goToDay(d)}
-                      className="flex flex-col items-center gap-1.5 rounded-2xl py-4 active:scale-95 transition-all"
-                      style={{
-                        background: bg,
-                        border: isToday ? "1.5px solid rgba(255,255,255,0.4)" : "1px solid transparent",
-                      }}
-                    >
-                      <span className="text-[9px] font-bold" style={{ color: "#444" }}>{dayLabels[d.getDay()]}</span>
-                      <span className="text-sm font-bold" style={{ color: isToday ? "#fff" : "#bbb" }}>{d.getDate()}</span>
-                      {totals?.expense > 0 && (
-                        <span className="text-[8px] font-semibold tabular-nums" style={{ color: "rgba(255,255,255,0.5)" }}>
-                          ₹{Math.round(totals.expense / 1000) > 0 ? `${Math.round(totals.expense / 1000)}k` : totals.expense}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Day view stats (shown for week and day) */}
-          {(calView === "week" || calView === "day") && (
-            <StatsRow income={viewStats.income} expenses={viewStats.expenses} saved={viewStats.saved} net={viewStats.net} />
-          )}
-
-          {/* Day view transactions */}
-          {calView === "day" && (
-            <TxnList txns={dayTxns} userId={userId} />
-          )}
-
-          {/* Month stats */}
-          {calView === "month" && (
-            <StatsRow income={viewStats.income} expenses={viewStats.expenses} saved={viewStats.saved} net={viewStats.net} />
-          )}
-
-          {/* Week hint */}
+          {/* ── WEEK VIEW ── */}
           {calView === "week" && (
-            <p className="text-center text-[#2A2A2A] text-xs">Tap a day to see its transactions</p>
+            <>
+              <div className="rounded-2xl overflow-hidden" style={{ background: "#1A1A1A" }}>
+                <div className="grid grid-cols-7 p-3" style={{ gap: 5 }}>
+                  {Array.from({ length: 7 }, (_, i) => {
+                    const date    = addDays(weekStart, i);
+                    const isToday = isSameDay(date, now);
+                    const totals  = dayMap.get(dayKey(date));
+                    const bg      = dayBg(totals);
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => openDay(date)}
+                        className="flex flex-col items-center rounded-2xl py-4 active:scale-95 transition-all"
+                        style={{
+                          gap: 6,
+                          background: bg,
+                          border: isToday ? "1.5px solid rgba(255,255,255,0.5)" : "1px solid transparent",
+                        }}
+                      >
+                        <span className="text-[9px] font-bold uppercase"
+                          style={{ color: isToday ? "#fff" : "#3A3A3A" }}>
+                          {DOW_LABEL[date.getDay()].slice(0, 3)}
+                        </span>
+                        <span className="text-sm font-bold leading-none"
+                          style={{ color: isToday ? "#fff" : totals ? "rgba(255,255,255,0.85)" : "#444" }}>
+                          {date.getDate()}
+                        </span>
+                        {totals && (totals.expense > 0 || totals.income > 0) && (
+                          <span className="text-[8px] font-semibold tabular-nums" style={{ color: "rgba(255,255,255,0.4)" }}>
+                            {totals.expense > 0
+                              ? `−₹${totals.expense >= 1000 ? `${Math.round(totals.expense / 1000)}k` : totals.expense}`
+                              : `+₹${totals.income >= 1000 ? `${Math.round(totals.income / 1000)}k` : totals.income}`}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <StatsRow {...viewStats} />
+              {weekTxns.length === 0 && (
+                <p className="text-center text-[#2A2A2A] text-sm py-2">Tap a day to see transactions</p>
+              )}
+              {goals.length > 0 && <GoalsStrip goals={goals} />}
+            </>
           )}
 
-          {/* Month hint */}
-          {calView === "month" && monthTxns.length === 0 && (
-            <p className="text-center text-[#333] text-sm py-4">No transactions this month</p>
+          {/* ── DAY VIEW ── */}
+          {calView === "day" && (
+            <>
+              <StatsRow {...viewStats} />
+              <TxnList txns={dayTxns} userId={userId} />
+            </>
           )}
 
-          {/* Goals strip — always shown */}
-          {goals.length > 0 && (
-            <GoalsStrip goals={goals} />
-          )}
         </div>
       </div>
 
       <BottomNav />
 
-      {/* Profile Drawer */}
       <ProfileDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         user={user}
         onChangePin={() => { setDrawerOpen(false); router.push("/settings"); }}
-        onForgotPin={handleForgotPin}
-        onSignOut={handleSignOut}
-        onReset={handleReset}
+        onForgotPin={async () => {
+          setDrawerOpen(false);
+          if (user?.email) {
+            try { await forgotPassword(user.email); } catch {}
+            alert(`Reset email sent to ${user.email}`);
+          }
+        }}
+        onSignOut={async () => { setDrawerOpen(false); await logout(); }}
+        onReset={() => { setDrawerOpen(false); resetAccount(); }}
       />
     </div>
   );

@@ -96,6 +96,17 @@ input[type="number"] { -moz-appearance: textfield; }
   to   { opacity: 1; transform: translateX(0); }
 }
 
+/* Calendar directional transitions */
+@keyframes calSlideForward {
+  from { opacity: 0; transform: translateX(36px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes calSlideBack {
+  from { opacity: 0; transform: translateX(-36px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
 /* ═══════════════════════════════════════
    Utility classes
 ═══════════════════════════════════════ */
@@ -110,8 +121,10 @@ input[type="number"] { -moz-appearance: textfield; }
 .sheet-up       { animation: sheetUp 0.38s cubic-bezier(0.32, 0.72, 0, 1) both; }
 .cal-pop        { animation: calPop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
 .dot-pop        { animation: dotPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-.slide-in-right { animation: slideInRight 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.slide-in-left  { animation: slideInLeft 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.slide-in-right    { animation: slideInRight 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.slide-in-left     { animation: slideInLeft 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.cal-slide-forward { animation: calSlideForward 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.cal-slide-back    { animation: calSlideBack 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 /* Stagger children */
 .stagger-children > *:nth-child(1)  { animation-delay: 0ms; }
