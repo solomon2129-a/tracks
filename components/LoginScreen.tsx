@@ -1,134 +1,144 @@
 "use client";
 
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 
+type Tab = "signin" | "signup";
+
+const INPUT_STYLE = {
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: 14,
+  color: "#fff",
+  padding: "16px",
+  fontSize: 16,
+  outline: "none",
+  width: "100%",
+} as const;
+
 export default function LoginScreen() {
-  const { signup, login } = useAuth();
-  const [step, setStep] = useState<"welcome" | "pin-setup">("welcome");
-  const [hasExistingAccount, setHasExistingAccount] = useState(false);
-  const [pin, setPin] = useState("");
-  const [confirmPin, setConfirmPin] = useState("");
+  const { signup, login, forgotPassword } = useAuth();
+  const [tab, setTab] = useState<Tab>("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPass, setConfirmPass] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
 
-  useEffect(() => {
-    // Check if user already has an account
-    const pinHash = localStorage.getItem("tracksy_pin_hash");
-    setHasExistingAccount(!!pinHash);
-  }, []);
-
-  const handleCreateAccount = () => {
-    setStep("pin-setup");
+  const switchTab = (t: Tab) => {
+    setTab(t);
     setError("");
+    setPassword("");
+    setConfirmPass("");
   };
 
-  const handleSignIn = async () => {
-    setLoading(true);
-    try {
-      await login();
-    } catch (err) {
-      setError("Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePinDigit = (digit: string, isConfirm: boolean) => {
-    if (isConfirm) {
-      if (confirmPin.length < 4) {
-        setConfirmPin(confirmPin + digit);
-      }
-    } else {
-      if (pin.length < 4) {
-        setPin(pin + digit);
-      }
-    }
-  };
-
-  const handleBackspace = (isConfirm: boolean) => {
-    if (isConfirm) {
-      setConfirmPin(confirmPin.slice(0, -1));
-    } else {
-      setPin(pin.slice(0, -1));
-    }
-  };
-
-  const handleSkipPin = async () => {
-    setLoading(true);
-    try {
-      await signup(); // Uses default "0000"
-    } catch (err) {
-      setError("Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSetPin = async () => {
-    if (pin.length !== 4 || confirmPin.length !== 4) {
-      setError("PIN must be 4 digits");
+  const handleSubmit = async () => {
+    if (!email.trim() || !password) {
+      setError("Please fill in all fields");
       return;
     }
-
-    if (pin !== confirmPin) {
-      setError("PINs don't match");
-      setPin("");
-      setConfirmPin("");
+    if (tab === "signup" && password !== confirmPass) {
+      setError("Passwords don't match");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
       return;
     }
 
     setLoading(true);
+    setError("");
     try {
-      await signup(pin);
-    } catch (err) {
-      setError("Something went wrong");
+      if (tab === "signin") {
+        await login(email.trim(), password);
+      } else {
+        await signup(email.trim(), password);
+      }
+    } catch (err: any) {
+      const code: string = err?.code || "";
+      if (code.includes("user-not-found") || code.includes("wrong-password") || code.includes("invalid-credential")) {
+        setError("Incorrect email or password");
+      } else if (code.includes("email-already-in-use")) {
+        setError("Account already exists — try Sign In");
+      } else if (code.includes("invalid-email")) {
+        setError("Invalid email address");
+      } else if (code.includes("weak-password")) {
+        setError("Password must be at least 6 characters");
+      } else {
+        setError("Something went wrong. Try again.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  if (step === "welcome") {
+  const handleForgot = async () => {
+    if (!forgotEmail.trim()) return;
+    setForgotLoading(true);
+    try {
+      await forgotPassword(forgotEmail.trim());
+    } catch {
+      // Always show success to prevent email enumeration
+    } finally {
+      setForgotSent(true);
+      setForgotLoading(false);
+    }
+  };
+
+  if (showForgot) {
     return (
-      <div className="min-h-screen flex flex-col px-6 max-w-md mx-auto" style={{ background: "#0F0F0F" }}>
-        <div className="flex-1 flex flex-col items-center justify-center gap-8">
-          <Image src="/logotr.png" alt="Tracksy" width={80} height={80} className="rounded-3xl" priority />
-          <div className="text-center">
-            <h1 className="text-white text-4xl font-bold tracking-tight mb-2">Tracksy</h1>
-            <p className="text-[#666] text-base">Track spending across your accounts</p>
-          </div>
-        </div>
+      <div className="min-h-screen flex flex-col px-6 max-w-md mx-auto fade-in" style={{ background: "#0F0F0F" }}>
+        <div className="flex-1 flex flex-col justify-center gap-6">
+          <button
+            onClick={() => { setShowForgot(false); setForgotSent(false); setForgotEmail(""); }}
+            className="self-start flex items-center gap-2 active:scale-95 transition-transform"
+            style={{ color: "#666" }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            <span className="text-sm font-semibold">Back</span>
+          </button>
 
-        <div className="pb-12 flex flex-col gap-3">
-          {hasExistingAccount ? (
+          <div>
+            <h2 className="text-white text-3xl font-bold mb-2">Reset Password</h2>
+            <p className="text-[#555] text-sm">Enter your email to receive a reset link.</p>
+          </div>
+
+          {forgotSent ? (
+            <div className="rounded-2xl p-5 scale-in" style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
+              <p className="text-[#22C55E] font-semibold mb-1">Email sent!</p>
+              <p className="text-[#22C55E] text-sm opacity-80">Check your inbox and follow the link to reset your password. Then sign in with your new password.</p>
+            </div>
+          ) : (
             <>
+              <input
+                type="email"
+                placeholder="your@email.com"
+                value={forgotEmail}
+                onChange={e => setForgotEmail(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleForgot()}
+                style={INPUT_STYLE}
+                autoFocus
+              />
               <button
-                onClick={handleSignIn}
-                disabled={loading}
-                className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.97] transition-transform disabled:opacity-50"
-                style={{ background: "#fff", color: "#000" }}
+                onClick={handleForgot}
+                disabled={!forgotEmail.trim() || forgotLoading}
+                className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.97] transition-all"
+                style={{
+                  background: forgotEmail.trim() ? "#fff" : "rgba(255,255,255,0.07)",
+                  color: forgotEmail.trim() ? "#000" : "#444",
+                }}
               >
-                {loading ? "Signing In..." : "Sign In"}
-              </button>
-              <button
-                onClick={handleCreateAccount}
-                className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.97] transition-transform"
-                style={{ background: "#1A1A1A", color: "#fff", border: "1px solid #333" }}
-              >
-                Create Another Account
+                {forgotLoading ? "Sending…" : "Send Reset Email"}
               </button>
             </>
-          ) : (
-            <button
-              onClick={handleCreateAccount}
-              className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.97] transition-transform"
-              style={{ background: "#fff", color: "#000" }}
-            >
-              Create Account
-            </button>
           )}
-          <p className="text-center text-xs" style={{ color: "#333" }}>Your data is secure and private</p>
         </div>
       </div>
     );
@@ -136,124 +146,93 @@ export default function LoginScreen() {
 
   return (
     <div className="min-h-screen flex flex-col px-6 max-w-md mx-auto" style={{ background: "#0F0F0F" }}>
-      <div className="flex-1 flex flex-col items-center justify-center gap-8">
-        <div className="text-center">
-          <h2 className="text-white text-3xl font-bold mb-2">Set Up Secret PIN</h2>
-          <p className="text-[#666] text-sm">Optional: Protect your app with a PIN (or skip to use 0000)</p>
+      <div className="flex-1 flex flex-col justify-center gap-8">
+        {/* Logo */}
+        <div className="flex flex-col items-center gap-4 scale-in">
+          <Image src="/logotr.png" alt="Tracksy" width={72} height={72} className="rounded-3xl" priority />
+          <div className="text-center">
+            <h1 className="text-white text-3xl font-bold tracking-tight">Tracksy</h1>
+            <p className="text-[#555] text-sm mt-1">Your personal finance tracker</p>
+          </div>
         </div>
 
-        <div className="w-full space-y-6">
-          {/* PIN Entry */}
-          <div>
-            <label className="text-[#666] text-xs font-semibold block mb-3">Enter PIN</label>
-            <div className="flex gap-3 justify-center">
-              {[0, 1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="w-12 h-12 rounded-full border-2 flex items-center justify-center text-white font-bold text-xl transition-all"
-                  style={{
-                    borderColor: i < pin.length ? "#fff" : "#333",
-                    background: i < pin.length ? "#fff" : "transparent",
-                    color: i < pin.length ? "#000" : "#fff",
-                  }}
-                >
-                  {i < pin.length ? "●" : ""}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* PIN Confirm */}
-          <div>
-            <label className="text-[#666] text-xs font-semibold block mb-3">Confirm PIN</label>
-            <div className="flex gap-3 justify-center">
-              {[0, 1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="w-12 h-12 rounded-full border-2 flex items-center justify-center text-white font-bold text-xl transition-all"
-                  style={{
-                    borderColor: i < confirmPin.length ? "#fff" : "#333",
-                    background: i < confirmPin.length ? "#fff" : "transparent",
-                    color: i < confirmPin.length ? "#000" : "#fff",
-                  }}
-                >
-                  {i < confirmPin.length ? "●" : ""}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+        {/* Tab switcher */}
+        <div className="flex rounded-2xl p-1 fade-up" style={{ background: "#1A1A1A", animationDelay: "80ms" }}>
+          {(["signin", "signup"] as Tab[]).map(t => (
+            <button
+              key={t}
+              onClick={() => switchTab(t)}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 active:scale-95"
+              style={{
+                background: tab === t ? "#fff" : "transparent",
+                color: tab === t ? "#000" : "#555",
+              }}
+            >
+              {t === "signin" ? "Sign In" : "Create Account"}
+            </button>
+          ))}
         </div>
-      </div>
 
-      {/* Numeric Keypad */}
-      <div className="pb-20 grid grid-cols-3 gap-3">
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+        {/* Form */}
+        <div key={tab} className="flex flex-col gap-3 fade-in">
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={e => { setEmail(e.target.value); setError(""); }}
+            onKeyDown={e => e.key === "Enter" && handleSubmit()}
+            style={INPUT_STYLE}
+            autoComplete="email"
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={e => { setPassword(e.target.value); setError(""); }}
+            onKeyDown={e => e.key === "Enter" && handleSubmit()}
+            style={INPUT_STYLE}
+            autoComplete={tab === "signup" ? "new-password" : "current-password"}
+          />
+          {tab === "signup" && (
+            <input
+              type="password"
+              placeholder="Confirm password"
+              value={confirmPass}
+              onChange={e => { setConfirmPass(e.target.value); setError(""); }}
+              onKeyDown={e => e.key === "Enter" && handleSubmit()}
+              style={INPUT_STYLE}
+              autoComplete="new-password"
+            />
+          )}
+
+          {error && (
+            <p className="text-[#F43F5E] text-sm text-center animate-pulse">{error}</p>
+          )}
+
           <button
-            key={num}
-            onClick={() => {
-              if (pin.length < 4) handlePinDigit(String(num), false);
-              else if (confirmPin.length < 4) handlePinDigit(String(num), true);
-            }}
+            onClick={handleSubmit}
             disabled={loading}
-            className="py-4 rounded-2xl font-bold text-xl transition-all active:scale-95"
-            style={{ background: "#fff", color: "#000" }}
+            className="w-full py-4 rounded-2xl font-bold text-base active:scale-[0.97] transition-all mt-1"
+            style={{ background: "#fff", color: "#000", opacity: loading ? 0.7 : 1 }}
           >
-            {num}
+            {loading
+              ? (tab === "signin" ? "Signing In…" : "Creating Account…")
+              : (tab === "signin" ? "Sign In" : "Create Account")}
           </button>
-        ))}
 
-        <button
-          onClick={() => {
-            if (pin.length < 4) handlePinDigit("0", false);
-            else if (confirmPin.length < 4) handlePinDigit("0", true);
-          }}
-          className="col-span-2 py-4 rounded-2xl font-bold text-xl transition-all active:scale-95"
-          disabled={loading}
-          style={{ background: "#fff", color: "#000" }}
-        >
-          0
-        </button>
-
-        <button
-          onClick={() => {
-            if (confirmPin.length > 0) handleBackspace(true);
-            else if (pin.length > 0) handleBackspace(false);
-          }}
-          className="py-4 rounded-2xl font-bold text-lg transition-all active:scale-95"
-          style={{ background: "rgba(255,255,255,0.1)", color: "#fff" }}
-        >
-          ←
-        </button>
-
-        {/* Action Buttons */}
-        <button
-          onClick={handleSkipPin}
-          disabled={loading}
-          className="col-span-3 py-4 rounded-2xl font-bold transition-all active:scale-95"
-          style={{
-            background: "rgba(255,255,255,0.1)",
-            color: "#666",
-            opacity: loading ? 0.5 : 1,
-          }}
-        >
-          {loading ? "Loading..." : "Skip (Use 0000)"}
-        </button>
-
-        <button
-          onClick={handleSetPin}
-          disabled={pin.length !== 4 || confirmPin.length !== 4 || loading}
-          className="col-span-3 py-4 rounded-2xl font-bold transition-all active:scale-95"
-          style={{
-            background: pin.length === 4 && confirmPin.length === 4 ? "#fff" : "rgba(255,255,255,0.1)",
-            color: pin.length === 4 && confirmPin.length === 4 ? "#000" : "#444",
-            opacity: pin.length === 4 && confirmPin.length === 4 && !loading ? 1 : 0.5,
-          }}
-        >
-          {loading ? "Creating..." : "Create Account"}
-        </button>
+          {tab === "signin" && (
+            <button
+              onClick={() => { setShowForgot(true); setForgotEmail(email); }}
+              className="text-center text-sm transition-colors active:scale-95"
+              style={{ color: "#444" }}
+            >
+              Forgot password?
+            </button>
+          )}
+        </div>
       </div>
+
+      <p className="text-center text-[#2A2A2A] text-xs pb-10">Your data stays private and secure</p>
     </div>
   );
 }

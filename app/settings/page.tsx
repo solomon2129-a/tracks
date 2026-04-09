@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { deleteAllTransactions } from "@/lib/firestore";
 
 export default function SettingsPage() {
-  const { userId, changePin, logout, resetAccount } = useAuth();
+  const { userId, changePin, lock, resetAccount } = useAuth();
   const router = useRouter();
   const [resetConfirm, setResetConfirm] = useState(false);
 
@@ -56,7 +56,7 @@ export default function SettingsPage() {
   };
 
   const handleLock = () => {
-    logout(); // just locks — keeps account intact
+    lock(); // just locks — keeps account and Firebase session intact
   };
 
   const handleReset = () => {

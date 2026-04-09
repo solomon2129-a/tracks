@@ -3,69 +3,59 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import LoginScreen from "./LoginScreen";
+import PinSetup from "./PinSetup";
 import PinVerification from "./PinVerification";
 import SplashScreen from "./SplashScreen";
 import AccountSetup from "./AccountSetup";
 import { getOrCreateUserProfile } from "@/lib/firestore";
 
-type Phase = "splash" | "loading" | "login" | "pin-verify" | "account-setup" | "app";
+type Phase = "splash" | "loading" | "login" | "pin-setup" | "pin-verify" | "account-setup" | "app";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const { userId, loading, isAuthenticated, isPinUnlocked } = useAuth();
+  const { userId, loading, isAuthenticated, isPinUnlocked, hasCompletedPinSetup } = useAuth();
   const [splashDone, setSplashDone] = useState(false);
   const [phase, setPhase] = useState<Phase>("splash");
-  const [needsAccountSetup, setNeedsAccountSetup] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setSplashDone(true), 1600);
+    const t = setTimeout(() => setSplashDone(true), 1400);
     return () => clearTimeout(t);
   }, []);
 
   useEffect(() => {
     if (!splashDone || loading) return;
 
-    // Not authenticated yet
     if (!isAuthenticated || !userId) {
       setPhase("login");
       return;
     }
 
-    // Authenticated but PIN not verified
+    if (!hasCompletedPinSetup()) {
+      setPhase("pin-setup");
+      return;
+    }
+
     if (!isPinUnlocked) {
       setPhase("pin-verify");
       return;
     }
 
-    // PIN is verified, check if accounts are set up
-    const checkSetup = async () => {
+    // PIN verified — check if accounts are set up
+    const checkAccounts = async () => {
       try {
         const profile = await getOrCreateUserProfile(userId);
-        if (profile.accounts.length === 0) {
-          setNeedsAccountSetup(true);
-          setPhase("account-setup");
-        } else {
-          setPhase("app");
-        }
-      } catch (error) {
-        console.error("Error checking profile:", error);
+        setPhase(profile.accounts.length === 0 ? "account-setup" : "app");
+      } catch {
         setPhase("app");
       }
     };
-
-    checkSetup();
+    checkAccounts();
   }, [splashDone, loading, isAuthenticated, isPinUnlocked, userId]);
 
-  if (phase === "splash") return <SplashScreen />;
-
-  if (phase === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0F0F0F" }}>
-        <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-      </div>
-    );
-  }
+  if (phase === "splash" || phase === "loading") return <SplashScreen />;
 
   if (phase === "login") return <LoginScreen />;
+
+  if (phase === "pin-setup") return <PinSetup />;
 
   if (phase === "pin-verify") return <PinVerification />;
 
@@ -77,4 +67,3 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return <SplashScreen />;
 }
-

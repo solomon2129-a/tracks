@@ -1,59 +1,95 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  User,
+} from "firebase/auth";
+import { getFirebaseAuth } from "@/lib/firebase";
 
 interface AuthContextType {
   userId: string | null;
+  user: User | null;
   loading: boolean;
   isAuthenticated: boolean;
   isPinUnlocked: boolean;
-  signup: (pin?: string) => Promise<void>;
-  login: () => Promise<void>;
+  signup: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   verifyPin: (pin: string) => Promise<boolean>;
+  completePinSetup: (pin?: string) => Promise<void>;
   changePin: (currentPin: string, newPin: string) => Promise<boolean>;
-  logout: () => void;
+  forgotPassword: (email: string) => Promise<void>;
+  lock: () => void;
+  logout: () => Promise<void>;
   resetAccount: () => void;
+  hasCompletedPinSetup: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
+function pinHashKey(uid: string) { return `tracksy_pin_${uid}`; }
+function pinSetupDoneKey(uid: string) { return `tracksy_setup_${uid}`; }
+
+async function hashPin(pin: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(pin);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [userId, setUserId] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isPinUnlocked, setIsPinUnlocked] = useState(false);
 
   useEffect(() => {
-    const storedUserId = localStorage.getItem("tracksy_user_id");
-    if (storedUserId) {
-      setUserId(storedUserId);
-      setIsAuthenticated(true);
-    }
-    setLoading(false);
+    const auth = getFirebaseAuth();
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setLoading(false);
+      if (!firebaseUser) setIsPinUnlocked(false);
+    });
+    return unsubscribe;
   }, []);
 
-  const signup = async (pin?: string) => {
-    const uid = `user_${Date.now()}`;
-    const pinToSet = pin || "0000";
-    const hashedPin = await hashPin(pinToSet);
-    localStorage.setItem("tracksy_user_id", uid);
-    localStorage.setItem("tracksy_pin_hash", hashedPin);
-    setUserId(uid);
-    setIsAuthenticated(true);
+  const signup = async (email: string, password: string) => {
+    const cred = await createUserWithEmailAndPassword(getFirebaseAuth(), email, password);
+    setUser(cred.user);
+  };
+
+  const login = async (email: string, password: string) => {
+    const cred = await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
+    setUser(cred.user);
+  };
+
+  const hasCompletedPinSetup = (): boolean => {
+    if (!user) return false;
+    return !!localStorage.getItem(pinSetupDoneKey(user.uid));
+  };
+
+  const completePinSetup = async (pin?: string) => {
+    if (!user) return;
+    if (pin) {
+      const hash = await hashPin(pin);
+      localStorage.setItem(pinHashKey(user.uid), hash);
+    }
+    localStorage.setItem(pinSetupDoneKey(user.uid), "1");
     setIsPinUnlocked(true);
   };
 
-  const login = async () => {
-    const storedUserId = localStorage.getItem("tracksy_user_id");
-    const storedHash = localStorage.getItem("tracksy_pin_hash");
-    if (!storedUserId || !storedHash) throw new Error("No existing account found");
-    setUserId(storedUserId);
-    setIsAuthenticated(true);
-  };
-
   const verifyPin = async (pin: string): Promise<boolean> => {
-    const storedHash = localStorage.getItem("tracksy_pin_hash");
-    if (!storedHash) return false;
+    if (!user) return false;
+    const storedHash = localStorage.getItem(pinHashKey(user.uid));
+    if (!storedHash) {
+      setIsPinUnlocked(true);
+      return true;
+    }
     const incomingHash = await hashPin(pin);
     if (incomingHash === storedHash) {
       setIsPinUnlocked(true);
@@ -63,40 +99,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const changePin = async (currentPin: string, newPin: string): Promise<boolean> => {
-    const isValid = await verifyPin(currentPin);
-    if (!isValid) return false;
+    if (!user) return false;
+    const storedHash = localStorage.getItem(pinHashKey(user.uid));
+    if (storedHash) {
+      const currentHash = await hashPin(currentPin);
+      if (currentHash !== storedHash) return false;
+    }
     const newHash = await hashPin(newPin);
-    localStorage.setItem("tracksy_pin_hash", newHash);
+    localStorage.setItem(pinHashKey(user.uid), newHash);
     return true;
   };
 
-  const logout = () => {
+  const forgotPassword = async (email: string) => {
+    await sendPasswordResetEmail(getFirebaseAuth(), email);
+  };
+
+  const lock = () => setIsPinUnlocked(false);
+
+  const logout = async () => {
+    await signOut(getFirebaseAuth());
     setIsPinUnlocked(false);
   };
 
   const resetAccount = () => {
-    localStorage.removeItem("tracksy_user_id");
-    localStorage.removeItem("tracksy_pin_hash");
-    setUserId(null);
-    setIsAuthenticated(false);
+    if (!user) return;
+    localStorage.removeItem(pinHashKey(user.uid));
+    localStorage.removeItem(pinSetupDoneKey(user.uid));
+    signOut(getFirebaseAuth()).catch(() => {});
     setIsPinUnlocked(false);
   };
 
   return (
     <AuthContext.Provider
-      value={{ userId, loading, isAuthenticated, isPinUnlocked, signup, login, verifyPin, changePin, logout, resetAccount }}
+      value={{
+        userId: user?.uid ?? null,
+        user,
+        loading,
+        isAuthenticated: !!user,
+        isPinUnlocked,
+        signup,
+        login,
+        verifyPin,
+        completePinSetup,
+        changePin,
+        forgotPassword,
+        lock,
+        logout,
+        resetAccount,
+        hasCompletedPinSetup,
+      }}
     >
       {children}
     </AuthContext.Provider>
   );
-}
-
-async function hashPin(pin: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(pin);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
 export const useAuth = () => useContext(AuthContext);
