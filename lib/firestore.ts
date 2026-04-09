@@ -27,6 +27,7 @@ export type ExpenseCategory =
   | "Entertainment"
   | "Cigarettes"
   | "Lifestyle"
+  | "Savings"
   | "Other";
 
 export type IncomeCategory =
@@ -52,6 +53,7 @@ export const EXPENSE_CATEGORIES: { label: ExpenseCategory }[] = [
   { label: "Entertainment" },
   { label: "Cigarettes" },
   { label: "Lifestyle" },
+  { label: "Savings" },
   { label: "Other" },
 ];
 

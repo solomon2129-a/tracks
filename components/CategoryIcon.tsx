@@ -162,6 +162,17 @@ export function GiftIcon(p: IconProps) {
   );
 }
 
+export function SavingsIcon(p: IconProps) {
+  return (
+    <svg {...s(p)}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M16 8h-6a2 2 0 000 4h4a2 2 0 010 4H8" />
+      <line x1="12" y1="6" x2="12" y2="8" />
+      <line x1="12" y1="16" x2="12" y2="18" />
+    </svg>
+  );
+}
+
 export function OtherIcon(p: IconProps) {
   return (
     <svg {...s(p)}>
@@ -182,6 +193,7 @@ export function getCategoryColor(category: string): string {
     Entertainment: "#64D2FF",
     Cigarettes: "#98989D",
     Lifestyle: "#FF6E40",
+    Savings: "#22C55E",
     Work: "#30D158",
     Project: "#0A84FF",
     Friends: "#FFD60A",
@@ -203,6 +215,7 @@ const ICON_MAP: Record<string, (p: IconProps) => React.ReactElement> = {
   Entertainment: EntertainmentIcon,
   Cigarettes: CigaretteIcon,
   Lifestyle: LifestyleIcon,
+  Savings: SavingsIcon,
   Work: WorkIcon,
   Project: ProjectIcon,
   Friends: FriendsIcon,

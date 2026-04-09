@@ -7,6 +7,15 @@ import BottomNav from "@/components/BottomNav";
 import TransactionItem from "@/components/TransactionItem";
 import { subscribeToTransactions, deleteTransaction, Transaction } from "@/lib/firestore";
 
+interface LocalGoal {
+  id: string; name: string; targetAmount: number;
+  currentAmount: number; targetDateMs: number; createdAtMs: number;
+}
+function loadGoals(userId: string): LocalGoal[] {
+  try { const r = localStorage.getItem(`tracksy_goals_${userId}`); return r ? JSON.parse(r) : []; }
+  catch { return []; }
+}
+
 /* ─── Types ─── */
 type CalView = "month" | "week" | "day";
 
@@ -76,8 +85,9 @@ function heatColor(expense: number, income: number, maxExpense: number): string 
 /* ─── Stats ─── */
 function calcStats(txns: Transaction[]) {
   const income = txns.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
-  const expenses = txns.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
-  return { income, expenses, net: income - expenses };
+  const saved = txns.filter(t => t.type === "expense" && t.category === "Savings").reduce((s, t) => s + t.amount, 0);
+  const expenses = txns.filter(t => t.type === "expense" && t.category !== "Savings").reduce((s, t) => s + t.amount, 0);
+  return { income, expenses, saved, net: income - expenses - saved };
 }
 
 /* ─── Grouped transactions ─── */
@@ -103,23 +113,32 @@ function groupByDate(txns: Transaction[]) {
 const fmt = (n: number) => `₹${Math.abs(n).toLocaleString("en-IN")}`;
 
 /* ─── Stats Row ─── */
-function StatsRow({ income, expenses, net }: { income: number; expenses: number; net: number }) {
+function StatsRow({ income, expenses, saved, net }: { income: number; expenses: number; saved: number; net: number }) {
   return (
     <div className="rounded-2xl px-5 py-4" style={{ background: "#1A1A1A" }}>
-      <p className="text-[#444] text-[9px] font-semibold tracking-widest uppercase mb-1">Net</p>
-      <p className="font-bold leading-none mb-3 tracking-tight" style={{ fontSize: 32, color: net < 0 ? "#F43F5E" : "#fff" }}>
+      <p className="text-[#444] text-[9px] font-semibold tracking-widest uppercase mb-1">Net Balance</p>
+      <p className="font-bold leading-none mb-4 tracking-tight" style={{ fontSize: 34, color: net < 0 ? "#F43F5E" : "#fff" }}>
         {net < 0 ? "−" : "+"}{fmt(net)}
       </p>
-      <div className="flex gap-4">
-        <div>
+      <div className="flex gap-3 flex-wrap">
+        <div className="flex-1 min-w-0">
           <p className="text-[#444] text-[9px] uppercase tracking-widest mb-0.5">Income</p>
           <p className="text-[#22C55E] font-bold text-sm tabular-nums">+{fmt(income)}</p>
         </div>
-        <div className="w-px" style={{ background: "rgba(255,255,255,0.06)" }} />
-        <div>
+        <div className="w-px self-stretch" style={{ background: "rgba(255,255,255,0.06)" }} />
+        <div className="flex-1 min-w-0">
           <p className="text-[#444] text-[9px] uppercase tracking-widest mb-0.5">Spent</p>
           <p className="text-white font-bold text-sm tabular-nums">−{fmt(expenses)}</p>
         </div>
+        {saved > 0 && (
+          <>
+            <div className="w-px self-stretch" style={{ background: "rgba(255,255,255,0.06)" }} />
+            <div className="flex-1 min-w-0">
+              <p className="text-[#444] text-[9px] uppercase tracking-widest mb-0.5">Saved</p>
+              <p className="font-bold text-sm tabular-nums" style={{ color: "#22C55E" }}>−{fmt(saved)}</p>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -279,6 +298,56 @@ function ProfileDrawer({
   );
 }
 
+/* ─── Goals strip ─── */
+function GoalsStrip({ goals }: { goals: LocalGoal[] }) {
+  const active = goals.filter(g => g.currentAmount < g.targetAmount);
+  if (active.length === 0) return null;
+  const totalSaved = goals.reduce((s, g) => s + g.currentAmount, 0);
+  const totalTarget = goals.reduce((s, g) => s + g.targetAmount, 0);
+  const overallPct = Math.min(100, (totalSaved / totalTarget) * 100);
+
+  return (
+    <div className="rounded-2xl p-4 fade-up" style={{ background: "#1A1A1A" }}>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[#444] text-[9px] font-semibold tracking-widest uppercase">Goals</p>
+        <p className="text-[#444] text-[9px] font-semibold">{active.length} active</p>
+      </div>
+      {/* Overall bar */}
+      <div className="h-1.5 rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.06)" }}>
+        <div
+          className="h-full rounded-full transition-all duration-700"
+          style={{ width: `${overallPct}%`, background: "#22C55E" }}
+        />
+      </div>
+      <div className="flex items-center justify-between">
+        <p className="text-white font-bold text-sm tabular-nums">₹{totalSaved.toLocaleString("en-IN")} saved</p>
+        <p className="text-[#444] text-xs tabular-nums">of ₹{totalTarget.toLocaleString("en-IN")}</p>
+      </div>
+      {/* Individual goals */}
+      <div className="flex flex-col gap-2 mt-3">
+        {active.slice(0, 3).map(g => {
+          const pct = Math.min(100, (g.currentAmount / g.targetAmount) * 100);
+          const daysLeft = Math.max(0, Math.round((g.targetDateMs - Date.now()) / 86400000));
+          return (
+            <div key={g.id} className="flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-white text-xs font-semibold truncate">{g.name}</p>
+                  <p className="text-[#444] text-[9px] ml-2 flex-shrink-0">{daysLeft}d left</p>
+                </div>
+                <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                  <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "#22C55E" }} />
+                </div>
+              </div>
+              <p className="text-[#555] text-[10px] font-semibold tabular-nums flex-shrink-0">{Math.round(pct)}%</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Page ─── */
 const DOW = ["S", "M", "T", "W", "T", "F", "S"];
 
@@ -286,6 +355,7 @@ export default function ProfilePage() {
   const { userId, loading, user, lock, logout, forgotPassword, resetAccount } = useAuth();
   const router = useRouter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [goals, setGoals] = useState<LocalGoal[]>([]);
   const [calView, setCalView] = useState<CalView>("month");
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedWeekStart, setSelectedWeekStart] = useState<Date | null>(null);
@@ -295,6 +365,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!userId) return;
+    setGoals(loadGoals(userId));
     return subscribeToTransactions(userId, setTransactions);
   }, [userId]);
 
@@ -579,7 +650,7 @@ export default function ProfilePage() {
 
           {/* Day view stats (shown for week and day) */}
           {(calView === "week" || calView === "day") && (
-            <StatsRow income={viewStats.income} expenses={viewStats.expenses} net={viewStats.net} />
+            <StatsRow income={viewStats.income} expenses={viewStats.expenses} saved={viewStats.saved} net={viewStats.net} />
           )}
 
           {/* Day view transactions */}
@@ -589,7 +660,7 @@ export default function ProfilePage() {
 
           {/* Month stats */}
           {calView === "month" && (
-            <StatsRow income={viewStats.income} expenses={viewStats.expenses} net={viewStats.net} />
+            <StatsRow income={viewStats.income} expenses={viewStats.expenses} saved={viewStats.saved} net={viewStats.net} />
           )}
 
           {/* Week hint */}
@@ -600,6 +671,11 @@ export default function ProfilePage() {
           {/* Month hint */}
           {calView === "month" && monthTxns.length === 0 && (
             <p className="text-center text-[#333] text-sm py-4">No transactions this month</p>
+          )}
+
+          {/* Goals strip — always shown */}
+          {goals.length > 0 && (
+            <GoalsStrip goals={goals} />
           )}
         </div>
       </div>

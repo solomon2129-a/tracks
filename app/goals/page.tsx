@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import BottomNav from "@/components/BottomNav";
+import { addTransaction, subscribeToProfile, Account } from "@/lib/firestore";
 
 /* ─── Local goal type (no Firebase Timestamps) ─── */
 export interface LocalGoal {
@@ -125,7 +126,7 @@ function GoalCard({
 }: {
   goal: LocalGoal;
   onDelete: (id: string) => void;
-  onLogSavings: (id: string, newTotal: number) => void;
+  onLogSavings: (id: string, newTotal: number, contribution: number) => void;
 }) {
   const stats = calcStats(goal);
   const [expanded, setExpanded] = useState(false);
@@ -137,7 +138,8 @@ function GoalCard({
     if (!amt || amt <= 0) return;
     setSaving(true);
     const newTotal = Math.min(goal.currentAmount + amt, goal.targetAmount);
-    onLogSavings(goal.id, newTotal);
+    const actualContribution = newTotal - goal.currentAmount;
+    onLogSavings(goal.id, newTotal, actualContribution);
     setLogAmount("");
     setExpanded(false);
     setSaving(false);
@@ -386,11 +388,17 @@ export default function GoalsPage() {
   const { userId, loading } = useAuth();
   const [goals, setGoals] = useState<LocalGoal[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const accountsRef = useRef<Account[]>([]);
 
   // Load from localStorage on mount
   useEffect(() => {
     if (!userId) return;
     setGoals(loadGoals(userId));
+    // Subscribe to profile to get accounts for savings transactions
+    const unsub = subscribeToProfile(userId, (profile) => {
+      accountsRef.current = profile.accounts;
+    });
+    return unsub;
   }, [userId]);
 
   const save = useCallback((updated: LocalGoal[]) => {
@@ -413,8 +421,20 @@ export default function GoalsPage() {
     save(goals.filter(g => g.id !== id));
   };
 
-  const handleLogSavings = (id: string, newTotal: number) => {
+  const handleLogSavings = (id: string, newTotal: number, contribution: number) => {
     save(goals.map(g => g.id === id ? { ...g, currentAmount: newTotal } : g));
+    // Also record as a Firestore transaction so it shows in the profile calendar
+    if (userId && contribution > 0) {
+      const firstAccount = accountsRef.current[0];
+      if (firstAccount) {
+        addTransaction(userId, {
+          amount: contribution,
+          type: "expense",
+          category: "Savings",
+          accountId: firstAccount.id,
+        }).catch(() => {/* ignore if offline */});
+      }
+    }
   };
 
   if (loading || !userId) {

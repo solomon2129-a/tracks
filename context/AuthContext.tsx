@@ -7,6 +7,8 @@ import {
   signOut,
   onAuthStateChanged,
   sendPasswordResetEmail,
+  signInWithPopup,
+  GoogleAuthProvider,
   User,
 } from "firebase/auth";
 import { getFirebaseAuth } from "@/lib/firebase";
@@ -19,6 +21,7 @@ interface AuthContextType {
   isPinUnlocked: boolean;
   signup: (email: string, password: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   verifyPin: (pin: string) => Promise<boolean>;
   completePinSetup: (pin?: string) => Promise<void>;
   changePin: (currentPin: string, newPin: string) => Promise<boolean>;
@@ -65,6 +68,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const cred = await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
+    setUser(cred.user);
+  };
+
+  const loginWithGoogle = async () => {
+    const provider = new GoogleAuthProvider();
+    const cred = await signInWithPopup(getFirebaseAuth(), provider);
     setUser(cred.user);
   };
 
@@ -139,6 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isPinUnlocked,
         signup,
         login,
+        loginWithGoogle,
         verifyPin,
         completePinSetup,
         changePin,
