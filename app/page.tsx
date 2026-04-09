@@ -4,9 +4,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import BottomNav from "@/components/BottomNav";
 import CategoryIcon from "@/components/CategoryIcon";
-import { addTransaction, TransactionType, Category, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from "@/lib/firestore";
+import { addTransaction, TransactionType, Category, EXPENSE_CATEGORIES, INCOME_CATEGORIES, subscribeToProfile, Account } from "@/lib/firestore";
 
-type Step = 1 | 2 | 3;
+type Step = 0 | 1 | 2 | 3;
 
 const BTN_PRIMARY = {
   background: "#FFFFFF",
@@ -19,17 +19,31 @@ const BTN_DISABLED = {
 } as const;
 
 export default function HomePage() {
-  const { user, loading } = useAuth();
-  const [step, setStep] = useState<Step>(1);
+  const { userId, loading } = useAuth();
+  const [step, setStep] = useState<Step>(0);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [animKey, setAnimKey] = useState(0);
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<TransactionType | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
+  const [selectedAccount, setSelectedAccount] = useState<string>("");
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [saved, setSaved] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (userId) {
+      const unsubscribe = subscribeToProfile(userId, (profile) => {
+        setAccounts(profile.accounts);
+        if (!selectedAccount && profile.accounts.length > 0) {
+          setSelectedAccount(profile.accounts[0].id);
+        }
+      });
+      return unsubscribe;
+    }
+  }, [userId, selectedAccount]);
 
   useEffect(() => {
     if (step === 1) {
@@ -48,17 +62,23 @@ export default function HomePage() {
     setAmount("");
     setType(null);
     setCategory(null);
+    setSelectedAccount(accounts.length > 0 ? accounts[0].id : "");
     setDirection("forward");
     setAnimKey(k => k + 1);
-    setStep(1);
-  }, []);
+    setStep(0);
+  }, [accounts]);
 
   const handleSave = async () => {
-    if (!type || !category || !amount || !user) return;
+    if (!type || !category || !amount || !userId || !selectedAccount) return;
     setSaving(true);
     setSaveError(false);
     try {
-      await addTransaction(user.uid, { amount: parseFloat(amount), type, category });
+      await addTransaction(userId, {
+        amount: parseFloat(amount),
+        type,
+        category,
+        accountId: selectedAccount,
+      });
       setSaved(true);
       setTimeout(() => { setSaved(false); reset(); }, 1200);
     } catch {
@@ -69,7 +89,7 @@ export default function HomePage() {
     }
   };
 
-  if (loading) {
+  if (loading || !userId) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#0F0F0F" }}>
         <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
@@ -79,6 +99,7 @@ export default function HomePage() {
 
   const isValid = !!amount && parseFloat(amount) > 0;
   const categories = type === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+  const selectedAccountName = accounts.find(a => a.id === selectedAccount)?.name || "Select Account";
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#0F0F0F" }}>
@@ -95,7 +116,7 @@ export default function HomePage() {
       >
         {/* Step dots */}
         <div className="flex items-center gap-2 px-6 pt-5 pb-4">
-          {[1, 2, 3].map(s => (
+          {[0, 1, 2, 3].map(s => (
             <div
               key={s}
               className="rounded-full transition-all duration-300"
@@ -113,6 +134,39 @@ export default function HomePage() {
           key={animKey}
           className={`flex-1 flex flex-col ${direction === "forward" ? "step-forward" : "step-back"}`}
         >
+          {/* Step 0: Account Selection */}
+          {step === 0 && (
+            <div className="flex-1 flex flex-col px-6">
+              <div className="flex-1 flex flex-col justify-center gap-3">
+                <p className="text-[#555] text-[11px] font-semibold tracking-widest uppercase text-center mb-2">
+                  Which account?
+                </p>
+                {accounts.map((account) => (
+                  <button
+                    key={account.id}
+                    onClick={() => {
+                      setSelectedAccount(account.id);
+                      goTo(1, "forward");
+                    }}
+                    className="rounded-2xl p-5 text-left active:scale-[0.98] transition-transform"
+                    style={{
+                      background: selectedAccount === account.id ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.04)",
+                      border: `1px solid ${selectedAccount === account.id ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.08)"}`,
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-white text-lg font-bold mb-0.5">{account.name}</p>
+                        <p className="text-[#555] text-sm">{account.type}</p>
+                      </div>
+                      <div className="text-2xl">{account.type === "bank" ? "🏦" : account.type === "cash" ? "💵" : "💳"}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Step 1: Amount */}
           {step === 1 && (
             <div className="flex-1 flex flex-col px-6">

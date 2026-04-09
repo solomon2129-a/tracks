@@ -2,16 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import PinLock from "./PinLock";
 import LoginScreen from "./LoginScreen";
+import PinVerification from "./PinVerification";
 import SplashScreen from "./SplashScreen";
+import AccountSetup from "./AccountSetup";
+import { getOrCreateUserProfile } from "@/lib/firestore";
 
-type Phase = "splash" | "loading" | "auth" | "pin-setup" | "pin-entry" | "app";
+type Phase = "splash" | "loading" | "login" | "pin-verify" | "account-setup" | "app";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { userId, loading, isAuthenticated, isPinUnlocked } = useAuth();
   const [splashDone, setSplashDone] = useState(false);
   const [phase, setPhase] = useState<Phase>("splash");
+  const [needsAccountSetup, setNeedsAccountSetup] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setSplashDone(true), 1600);
@@ -19,23 +22,38 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!splashDone) return;
-    if (loading) { setPhase("loading"); return; }
-    if (!user) { setPhase("auth"); return; }
+    if (!splashDone || loading) return;
 
-    // Migrate old global PIN to per-user key
-    const pinKey = `tracksy_pin_${user.uid}`;
-    if (!localStorage.getItem(pinKey)) {
-      const oldPin = localStorage.getItem("tracksy_pin");
-      if (oldPin) localStorage.setItem(pinKey, oldPin);
+    // Not authenticated yet
+    if (!isAuthenticated || !userId) {
+      setPhase("login");
+      return;
     }
 
-    const hasPin = !!localStorage.getItem(pinKey);
-    if (!hasPin) { setPhase("pin-setup"); return; }
+    // Authenticated but PIN not verified
+    if (!isPinUnlocked) {
+      setPhase("pin-verify");
+      return;
+    }
 
-    const unlocked = sessionStorage.getItem("tracksy_unlocked") === "1";
-    setPhase(unlocked ? "app" : "pin-entry");
-  }, [splashDone, loading, user]);
+    // PIN is verified, check if accounts are set up
+    const checkSetup = async () => {
+      try {
+        const profile = await getOrCreateUserProfile(userId);
+        if (profile.accounts.length === 0) {
+          setNeedsAccountSetup(true);
+          setPhase("account-setup");
+        } else {
+          setPhase("app");
+        }
+      } catch (error) {
+        console.error("Error checking profile:", error);
+        setPhase("app");
+      }
+    };
+
+    checkSetup();
+  }, [splashDone, loading, isAuthenticated, isPinUnlocked, userId]);
 
   if (phase === "splash") return <SplashScreen />;
 
@@ -47,19 +65,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (phase === "auth") return <LoginScreen />;
+  if (phase === "login") return <LoginScreen />;
 
-  if ((phase === "pin-setup" || phase === "pin-entry") && user) {
-    return (
-      <PinLock
-        mode={phase === "pin-setup" ? "setup" : "verify"}
-        userId={user.uid}
-        onUnlock={() => setPhase("app")}
-      />
-    );
+  if (phase === "pin-verify") return <PinVerification />;
+
+  if (phase === "account-setup" && userId) {
+    return <AccountSetup onComplete={() => setPhase("app")} />;
   }
 
   if (phase === "app") return <>{children}</>;
 
   return <SplashScreen />;
 }
+
