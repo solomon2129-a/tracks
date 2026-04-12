@@ -356,8 +356,8 @@ export default function ProfilePage() {
             style={{ background: "#1A1A1A", color: "#888" }}>
             Today
           </button>
-          {/* Avatar / profile */}
-          <button onClick={() => setDrawer(true)}
+          {/* Avatar / settings */}
+          <button onClick={() => router.push("/settings")}
             className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-transform"
             style={{ background: "#1A1A1A" }}>
             <span className="text-white font-bold text-sm leading-none">
