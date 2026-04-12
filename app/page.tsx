@@ -68,19 +68,20 @@ export default function HomePage() {
     setStep(1);
   }, [accounts]);
 
-  const handleSave = async () => {
-    if (!type || !category || !amount || !userId || !selectedAccount) return;
+  const handleSave = async (cat: Category) => {
+    if (!type || !amount || !userId || !selectedAccount) return;
+    setCategory(cat);
     setSaving(true);
     setSaveError(false);
     try {
       await addTransaction(userId, {
         amount: parseFloat(amount),
         type,
-        category,
+        category: cat,
         accountId: selectedAccount,
       });
       setSaved(true);
-      setTimeout(() => { setSaved(false); reset(); }, 1200);
+      setTimeout(() => { setSaved(false); reset(); }, 1000);
     } catch {
       setSaveError(true);
       setTimeout(() => setSaveError(false), 3000);
@@ -271,11 +272,15 @@ export default function HomePage() {
                     return (
                       <button
                         key={label}
-                        onClick={() => setCategory(label as Category)}
+                        onClick={() => !saving && handleSave(label as Category)}
+                        disabled={saving}
                         className="fade-up flex flex-col items-center justify-center py-4 gap-2 rounded-2xl transition-all duration-150 active:scale-95"
                         style={{
-                          background: isSelected ? "#FFFFFF" : "rgba(255,255,255,0.04)",
-                          border: `1px solid ${isSelected ? "#FFFFFF" : "rgba(255,255,255,0.07)"}`,
+                          background: isSelected
+                            ? (saved ? "#22C55E" : "#FFFFFF")
+                            : "rgba(255,255,255,0.04)",
+                          border: `1px solid ${isSelected ? (saved ? "#22C55E" : "#FFFFFF") : "rgba(255,255,255,0.07)"}`,
+                          opacity: saving && !isSelected ? 0.4 : 1,
                         }}
                       >
                         <CategoryIcon
@@ -288,7 +293,7 @@ export default function HomePage() {
                           className="text-[10px] font-semibold tracking-wide"
                           style={{ color: isSelected ? "#000" : "#888" }}
                         >
-                          {label}
+                          {isSelected && saving ? "Saving…" : isSelected && saved ? "Saved ✓" : label}
                         </span>
                       </button>
                     );
@@ -298,23 +303,13 @@ export default function HomePage() {
               {saveError && (
                 <p className="text-[#F43F5E] text-xs text-center pb-2">Failed to save. Check your connection.</p>
               )}
-              <div className="pb-8 flex gap-2">
+              <div className="pb-8">
                 <button
                   onClick={() => goTo(2, "back")}
-                  className="w-12 h-12 rounded-2xl flex items-center justify-center active:scale-90 transition-transform flex-shrink-0"
+                  className="w-full py-4 rounded-2xl text-sm font-semibold active:scale-[0.97] transition-all"
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#888" }}
                 >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="15 18 9 12 15 6" />
-                  </svg>
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={!category || saving}
-                  className="flex-1 font-bold py-4 rounded-2xl text-base active:scale-[0.97] transition-all"
-                  style={saved ? { background: "#22C55E", color: "#fff" } : category ? BTN_PRIMARY : BTN_DISABLED}
-                >
-                  {saved ? "Saved ✓" : saving ? "Saving…" : "Save"}
+                  Back
                 </button>
               </div>
             </div>
