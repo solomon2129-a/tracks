@@ -383,12 +383,64 @@ function AddGoalForm({
   );
 }
 
+/* ─── Motivation variants per scenario ─── */
+const MOTIVATION_VARIANTS: Record<string, { msg: string; sub: string }[]> = {
+  allDone: [
+    { msg: "You actually did it. Every. Single. Goal. 🔥", sub: "Set harder ones. You're built different." },
+    { msg: "All goals crushed. Respect. 🏆", sub: "Most people quit. You didn't. Now raise the bar." },
+    { msg: "Zero goals left. That's insane. 🔥", sub: "You earned this. Now set something scarier." },
+    { msg: "Done. All of them. Who are you?? 🤯", sub: "Seriously though — make a new one before you get comfortable." },
+  ],
+  overdue: [
+    { msg: "{{n}} goal{{s}} overdue. That stings.", sub: "Stop scrolling Instagram and fix this. Seriously." },
+    { msg: "{{n}} goal{{s}} past the deadline. Not ideal.", sub: "You already missed it. Don't make it worse. Log something today." },
+    { msg: "Overdue. {{n}} of them. Come on.", sub: "It's embarrassing. Fix it before the day ends." },
+    { msg: "{{n}} goal{{s}} expired. You let it slip.", sub: "This is the part where most people give up. Don't be that person." },
+  ],
+  earlyAndBehind: [
+    { msg: "₹{{saved}} saved. That's it??", sub: "You've barely started. Stop bullshitting yourself and save something today." },
+    { msg: "₹{{saved}}. Weak. You know it.", sub: "You set this goal. Own it. Put some money in today." },
+    { msg: "Less than 20% done. Yikes.", sub: "The goal isn't saving itself. Wake up." },
+    { msg: "₹{{saved}} in the bag. But you're slacking hard.", sub: "You need to pick up the pace. Like, right now." },
+  ],
+  behind: [
+    { msg: "₹{{gap}} behind. Wake up.", sub: "You knew this would happen. Now do something about it." },
+    { msg: "₹{{gap}} in the hole. Still think it's fine?", sub: "It's not fine. It compounds. Save more today." },
+    { msg: "Behind by ₹{{gap}}. Not cool.", sub: "The gap doesn't fix itself. You do." },
+    { msg: "You're ₹{{gap}} behind schedule.", sub: "Stop pretending it'll sort itself out. It won't." },
+  ],
+  almostThere: [
+    { msg: "{{pct}}% there. Don't you dare slow down now.", sub: "You're so close it's stupid not to finish. Lock in." },
+    { msg: "{{pct}}% done. The finish line is RIGHT there.", sub: "Most people quit at 80%. Be the one who doesn't." },
+    { msg: "So close. {{pct}}% in. One push left.", sub: "You've done the hard part. Don't waste it now." },
+    { msg: "{{pct}}% and counting. Finish what you started.", sub: "This is not the time to coast. Sprint." },
+  ],
+  halfway: [
+    { msg: "Halfway there. ₹{{saved}} saved.", sub: "The second half always hurts more. That's exactly why you do it." },
+    { msg: "₹{{saved}} down. ₹{{left}} to go.", sub: "Halfway is where most people lose steam. Don't." },
+    { msg: "50%+ and going. Keep the momentum.", sub: "You built a habit. Don't break it now." },
+    { msg: "₹{{saved}} saved. More than half. Solid.", sub: "Don't celebrate yet. Finish the damn thing." },
+  ],
+  default: [
+    { msg: "₹{{saved}} of ₹{{target}} saved.", sub: "Save ₹{{daily}} today. No excuses. None." },
+    { msg: "₹{{daily}}/day. That's all it takes.", sub: "You chose this goal. Respect your past self enough to follow through." },
+    { msg: "₹{{saved}} so far. Keep stacking.", sub: "Small amounts daily beat big amounts never. Save ₹{{daily}} today." },
+    { msg: "You're {{pct}}% there. Keep going.", sub: "₹{{daily}} a day. Stop overthinking it. Just do it." },
+  ],
+};
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
 /* ─── Page ─── */
 export default function GoalsPage() {
   const { userId, loading } = useAuth();
   const [goals, setGoals] = useState<LocalGoal[]>([]);
   const [showForm, setShowForm] = useState(false);
   const accountsRef = useRef<Account[]>([]);
+  // Stable random seed per mount — changes each time the page is opened
+  const seedRef = useRef(Math.random());
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -460,41 +512,38 @@ export default function GoalsPage() {
 
   function getMotivation(): { msg: string; sub: string; color: string } {
     if (goals.length === 0) return { msg: "", sub: "", color: "" };
-    if (completedGoals === goals.length) return {
-      msg: "You actually did it. Every. Single. Goal. 🔥",
-      sub: "Set harder ones. You're built different.",
-      color: "#22C55E",
-    };
-    if (overdueGoals > 0) return {
-      msg: `${overdueGoals} goal${overdueGoals > 1 ? "s are" : " is"} overdue. That stings.`,
-      sub: "Stop scrolling Instagram and fix this. Seriously.",
-      color: "#F43F5E",
-    };
-    if (behindGoals > 0 && overallPct < 20) return {
-      msg: `₹${totalSaved.toLocaleString("en-IN")} saved. That's it??`,
-      sub: "You've barely started. Stop bullshitting yourself and save something today.",
-      color: "#F43F5E",
-    };
-    if (behindGoals > 0) return {
-      msg: `You're ₹${(totalTarget - totalSaved).toLocaleString("en-IN")} behind. Wake up.`,
-      sub: "You knew this would happen. Now do something about it.",
-      color: "#FBBF24",
-    };
-    if (overallPct >= 80) return {
-      msg: `${Math.round(overallPct)}% there. Don't you dare slow down now.`,
-      sub: "You're so close it's stupid not to finish. Lock in.",
-      color: "#22C55E",
-    };
-    if (overallPct >= 50) return {
-      msg: `Halfway there. ₹${totalSaved.toLocaleString("en-IN")} saved.`,
-      sub: "The second half always hurts more. That's exactly why you do it.",
-      color: "#fff",
-    };
-    return {
-      msg: `₹${totalSaved.toLocaleString("en-IN")} of ₹${totalTarget.toLocaleString("en-IN")} saved.`,
-      sub: `Save ₹${Math.ceil(totalDailyNeeded).toLocaleString("en-IN")} today. No excuses. None.`,
-      color: "#fff",
-    };
+
+    function fmt(template: string): string {
+      return template
+        .replace("{{n}}", String(overdueGoals))
+        .replace("{{s}}", overdueGoals > 1 ? "s are" : " is")
+        .replace(/\{\{saved\}\}/g, totalSaved.toLocaleString("en-IN"))
+        .replace(/\{\{target\}\}/g, totalTarget.toLocaleString("en-IN"))
+        .replace(/\{\{gap\}\}/g, (totalTarget - totalSaved).toLocaleString("en-IN"))
+        .replace(/\{\{pct\}\}/g, String(Math.round(overallPct)))
+        .replace(/\{\{daily\}\}/g, Math.ceil(totalDailyNeeded).toLocaleString("en-IN"))
+        .replace(/\{\{left\}\}/g, (totalTarget - totalSaved).toLocaleString("en-IN"));
+    }
+
+    function pickSeeded(key: string) {
+      const arr = MOTIVATION_VARIANTS[key];
+      const idx = Math.floor(seedRef.current * arr.length);
+      return arr[idx];
+    }
+
+    let key: string;
+    let color: string;
+
+    if (completedGoals === goals.length) { key = "allDone"; color = "#22C55E"; }
+    else if (overdueGoals > 0) { key = "overdue"; color = "#F43F5E"; }
+    else if (behindGoals > 0 && overallPct < 20) { key = "earlyAndBehind"; color = "#F43F5E"; }
+    else if (behindGoals > 0) { key = "behind"; color = "#FBBF24"; }
+    else if (overallPct >= 80) { key = "almostThere"; color = "#22C55E"; }
+    else if (overallPct >= 50) { key = "halfway"; color = "#fff"; }
+    else { key = "default"; color = "#fff"; }
+
+    const variant = pickSeeded(key);
+    return { msg: fmt(variant.msg), sub: fmt(variant.sub), color };
   }
 
   const mot = goals.length > 0 ? getMotivation() : null;
