@@ -1,9 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { deleteAllTransactions } from "@/lib/firestore";
+import {
+  getPermissionStatus,
+  requestPermission,
+  notificationsEnabled,
+  setNotificationsEnabled,
+  scheduleForToday,
+  registerSW,
+} from "@/lib/notifications";
 
 export default function SettingsPage() {
   const { userId, changePin, lock, resetAccount } = useAuth();
@@ -16,6 +24,30 @@ export default function SettingsPage() {
   const [pinError, setPinError] = useState("");
   const [pinSuccess, setPinSuccess] = useState(false);
   const [pinLoading, setPinLoading] = useState(false);
+
+  const [notifPermission, setNotifPermission] = useState<string>("default");
+  const [notifOn, setNotifOn] = useState(false);
+
+  useEffect(() => {
+    setNotifPermission(getPermissionStatus());
+    setNotifOn(notificationsEnabled());
+  }, []);
+
+  const handleNotifToggle = async () => {
+    if (notifOn) {
+      setNotificationsEnabled(false);
+      setNotifOn(false);
+      return;
+    }
+    const granted = await requestPermission();
+    setNotifPermission(getPermissionStatus());
+    if (granted) {
+      setNotificationsEnabled(true);
+      setNotifOn(true);
+      await registerSW();
+      scheduleForToday();
+    }
+  };
 
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -99,6 +131,36 @@ export default function SettingsPage() {
       </div>
 
       <div className="flex flex-col gap-3 px-5">
+        {/* Notifications */}
+        <div className="rounded-2xl p-5" style={{ background: "#1A1A1A" }}>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-white font-bold">Reminders</p>
+            <button
+              onClick={handleNotifToggle}
+              disabled={notifPermission === "denied" || notifPermission === "unsupported"}
+              className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+              style={{
+                background: notifOn ? "#22C55E" : "rgba(255,255,255,0.1)",
+                opacity: notifPermission === "denied" || notifPermission === "unsupported" ? 0.4 : 1,
+              }}
+            >
+              <span
+                className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all duration-300"
+                style={{ left: notifOn ? "calc(100% - 22px)" : 2 }}
+              />
+            </button>
+          </div>
+          <p className="text-[#555] text-xs">
+            {notifPermission === "denied"
+              ? "Blocked by browser — go to site settings to allow notifications."
+              : notifPermission === "unsupported"
+              ? "Notifications not supported on this browser."
+              : notifOn
+              ? "You'll get 5–8 reminders throughout the day to log expenses."
+              : "Get nudged 5–8 times a day to log your expenses."}
+          </p>
+        </div>
+
         {/* Change PIN */}
         <div className="rounded-2xl p-5" style={{ background: "#1A1A1A" }}>
           <p className="text-white font-bold mb-1">Change PIN</p>

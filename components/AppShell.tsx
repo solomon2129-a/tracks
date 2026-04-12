@@ -8,6 +8,7 @@ import PinVerification from "./PinVerification";
 import SplashScreen from "./SplashScreen";
 import AccountSetup from "./AccountSetup";
 import { getOrCreateUserProfile } from "@/lib/firestore";
+import { registerSW, scheduleForToday } from "@/lib/notifications";
 
 type Phase = "splash" | "loading" | "login" | "pin-setup" | "pin-verify" | "account-setup" | "app";
 
@@ -63,7 +64,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return <AccountSetup onComplete={() => setPhase("app")} />;
   }
 
-  if (phase === "app") return <>{children}</>;
+  if (phase === "app") {
+    // Register service worker + schedule notifications once per day
+    registerSW().then(() => scheduleForToday());
+    return <>{children}</>;
+  }
 
   return <SplashScreen />;
 }
