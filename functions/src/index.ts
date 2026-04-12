@@ -4,21 +4,43 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 admin.initializeApp();
 
 const MESSAGES = [
-  { title: "Did you buy something?", body: "Log it before you forget. 10 seconds." },
-  { title: "Quick check-in 👀", body: "What did you spend money on recently?" },
-  { title: "₹ log time", body: "Don't let expenses pile up. Log now." },
-  { title: "Your wallet is watching 👁️", body: "Spent anything in the last few hours?" },
-  { title: "Stop. Log your expenses.", body: "Future you will thank present you." },
-  { title: "Money check 💸", body: "Spent anything recently? Log it in Tracksy." },
-  { title: "Your goals won't fund themselves 🎯", body: "Stay on track. Log what you spent." },
-  { title: "Did you pay for something?", body: "Log it. Now. Don't be lazy about it." },
-  { title: "You have goals, remember?", body: "Every rupee logged is a step closer." },
-  { title: "What did you spend today?", body: "Tap to log it before you forget." },
-  { title: "₹₹₹", body: "Money tracked is money managed. Open Tracksy." },
-  { title: "Hey. Log your expenses.", body: "Less than 10 seconds. Just do it." },
-  { title: "Spending check 🧾", body: "Open Tracksy and log what you spent today." },
-  { title: "Don't let it slip 📊", body: "Small logs daily keep financial chaos away." },
-  { title: "Be honest with yourself 💡", body: "What have you spent money on today?" },
+  // Savage
+  { title: "Log your expenses, asshole 😤", body: "You spent money today. We both know it. Open the app." },
+  { title: "Hey dumbass 👋", body: "Did you log what you spent? No? Then do it right now." },
+  { title: "Stop being broke 🤦", body: "Broke people don't track. You're better than that. Log it." },
+  { title: "Put the phone down? WRONG 📱", body: "Open Tracksy. Log your expenses. Then put it down." },
+  { title: "You little shit 😂", body: "Did you forget to log again? Yeah you did. Go fix it." },
+  { title: "Oi. Log your money. 🫵", body: "Every rupee you don't log is a rupee that disappears forever." },
+  { title: "WAKE UP 🚨", body: "Your wallet is bleeding and you're just standing there. Log something." },
+  { title: "Seriously?? Still not logged? 🙄", body: "Takes 10 seconds. Stop being lazy. Open Tracksy." },
+  { title: "You're slipping 💀", body: "Untracked expenses are how people go broke. Don't be that guy." },
+  { title: "Bro. BRO. 😭", body: "Log. Your. Damn. Expenses. That's it. That's the whole message." },
+  // Goal-focused
+  { title: "Your goals called 📞", body: "They said you're slacking. Save something today, jackass." },
+  { title: "Save ₹ or stay broke 🤷", body: "Pick one. Your goals aren't going to fund themselves." },
+  { title: "Future you is pissed 😤", body: "Because present you isn't saving shit. Fix that. Now." },
+  { title: "That thing you want? 🎯", body: "Still not saved up for it. Log your expenses and fix that." },
+  { title: "Your goals are just dreams rn 💭", body: "Until you actually log and save. Start today, not tomorrow." },
+  // Funny
+  { title: "Ding ding ding 🔔", body: "That's the sound of money you forgot to log. Go track it." },
+  { title: "Money doesn't grow on trees 🌳", body: "But it does disappear in your hands. Log it before it's gone." },
+  { title: "You: 'I'll log it later' 🤡", body: "Also you, later: 'where did all my money go?' — LOG IT NOW." },
+  { title: "Beep boop 🤖", body: "This is your robot reminder to stop being stupid with money." },
+  { title: "Your bank account is crying 😢", body: "And you're not even watching. Log your expenses. Comfort it." },
+  { title: "Adulting is hard 😩", body: "Logging your expenses is the bare minimum. Just do it, champ." },
+  { title: "Sir this is a Tracksy 🍔", body: "Please log your expenses before you spend money on more food." },
+  { title: "Error 404: savings not found 💻", body: "Fix this bug by opening Tracksy and logging your shit." },
+  { title: "Notification unlocked 🔓", body: "Achievement: being broke. Fix it by logging your expenses today." },
+  { title: "Did you eat out again? 🍛", body: "Log it. Don't hide it. The app won't judge. (I will though.)" },
+  // Motivational but spicy
+  { title: "Stop scrolling. Log it. 🛑", body: "You have 10 seconds. That's it. Open Tracksy and be done." },
+  { title: "Rich people track money 💰", body: "Broke people don't. Which one are you trying to be?" },
+  { title: "This is your sign 🪧", body: "Log your expenses right now. Not later. Not after this. NOW." },
+  { title: "One day you'll thank me 🙏", body: "That day is not today. Today just log your damn expenses." },
+  { title: "Discipline > motivation 💪", body: "You don't feel like logging. Do it anyway. That's the point." },
+  { title: "Quick maths ➕➖", body: "Money in minus money out = where you actually stand. Log it." },
+  { title: "Nobody's coming to save you 🦸", body: "Just you and your budget. Log what you spent today." },
+  { title: "The grind doesn't stop 😤", body: "Neither does your spending. Keep up by logging it all." },
 ];
 
 function randomMessage() {

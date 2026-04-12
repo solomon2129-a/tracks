@@ -65,11 +65,13 @@ export default function SettingsPage() {
     if (!granted) { setTestLoading(false); return; }
 
     const MESSAGES = [
-      { title: "Did you buy something?", body: "Log it before you forget. 10 seconds." },
-      { title: "Money check 💸", body: "Spent anything recently? Log it in Tracksy." },
-      { title: "Your goals won't fund themselves 🎯", body: "Stay on track. Log what you spent." },
-      { title: "Hey. Log your expenses.", body: "Seriously. It takes less than 10 seconds." },
-      { title: "₹₹₹", body: "Money tracked is money managed. Open Tracksy." },
+      { title: "Log your expenses, asshole 😤", body: "You spent money today. We both know it. Open the app." },
+      { title: "Hey dumbass 👋", body: "Did you log what you spent? No? Then do it right now." },
+      { title: "Your goals called 📞", body: "They said you're slacking. Save something today, jackass." },
+      { title: "You: 'I'll log it later' 🤡", body: "Also you, later: 'where did all my money go?' — LOG IT NOW." },
+      { title: "Bro. BRO. 😭", body: "Log. Your. Damn. Expenses. That's it. That's the whole message." },
+      { title: "WAKE UP 🚨", body: "Your wallet is bleeding and you're just standing there. Log something." },
+      { title: "Rich people track money 💰", body: "Broke people don't. Which one are you trying to be?" },
     ];
     const msg = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
 
