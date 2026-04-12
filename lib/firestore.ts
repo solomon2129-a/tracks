@@ -196,6 +196,15 @@ export async function deleteTransaction(userId: string, transactionId: string) {
   await deleteDoc(doc(getFirebaseDb(), "users", userId, "transactions", transactionId));
 }
 
+/** Store FCM token in top-level fcmTokens collection so the Cloud Function can query all users */
+export async function saveFcmToken(userId: string, token: string) {
+  await setDoc(doc(getFirebaseDb(), "fcmTokens", userId), {
+    token,
+    userId,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export async function deleteAllTransactions(userId: string) {
   const snapshot = await getDocs(
     collection(getFirebaseDb(), "users", userId, "transactions")

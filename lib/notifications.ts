@@ -1,3 +1,7 @@
+import { getToken } from "firebase/messaging";
+import { getFirebaseMessaging } from "./firebase";
+import { saveFcmToken } from "./firestore";
+
 const MESSAGES = [
   { title: "Did you buy something?", body: "Log it before you forget. 10 seconds." },
   { title: "Quick check-in 👀", body: "What did you spend money on recently?" },
@@ -16,8 +20,11 @@ const MESSAGES = [
   { title: "Be honest with yourself 💡", body: "What have you spent money on today?" },
 ];
 
-const STORAGE_KEY = "tracksy_notifications";
-const SCHEDULE_KEY = "tracksy_notif_scheduled_date";
+const STORAGE_KEY      = "tracksy_notifications";
+const SCHEDULE_KEY     = "tracksy_notif_scheduled_date";
+const VAPID_KEY        = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+
+/* ─── Permission + enable ─── */
 
 export function notificationsEnabled(): boolean {
   if (typeof window === "undefined") return false;
@@ -41,45 +48,57 @@ export async function requestPermission(): Promise<boolean> {
   return result === "granted";
 }
 
-/** Register the service worker (for background notification support) */
+/* ─── FCM token registration ─── */
+
+export async function registerFcmToken(userId: string): Promise<void> {
+  if (!VAPID_KEY) return;
+  try {
+    const messaging = await getFirebaseMessaging();
+    if (!messaging) return;
+
+    const swReg = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
+    if (token) await saveFcmToken(userId, token);
+  } catch {
+    // Silently fail — user may have blocked notifications or SW not ready
+  }
+}
+
+/* ─── Register old sw.js for local notifications ─── */
+
 export async function registerSW(): Promise<ServiceWorkerRegistration | null> {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return null;
   try {
-    const reg = await navigator.serviceWorker.register("/sw.js");
-    return reg;
+    return await navigator.serviceWorker.register("/sw.js");
   } catch {
     return null;
   }
 }
 
-/** Schedule 5–8 random notifications spread across 9am–10pm today.
- *  Only schedules once per calendar day (stored in localStorage). */
+/* ─── Local fallback scheduling (fires while browser is open) ─── */
+
 export function scheduleForToday(): void {
   if (typeof window === "undefined") return;
   if (Notification.permission !== "granted") return;
   if (!notificationsEnabled()) return;
 
   const today = new Date().toDateString();
-  if (localStorage.getItem(SCHEDULE_KEY) === today) return; // already scheduled today
+  if (localStorage.getItem(SCHEDULE_KEY) === today) return;
   localStorage.setItem(SCHEDULE_KEY, today);
 
-  const count = 5 + Math.floor(Math.random() * 4); // 5-8 per day
-  const now = Date.now();
+  const count = 5 + Math.floor(Math.random() * 4); // 5–8
+  const now   = Date.now();
+  const start = new Date(); start.setHours(9, 0, 0, 0);
+  const end   = new Date(); end.setHours(22, 0, 0, 0);
+  const range = end.getTime() - start.getTime();
 
-  const dayStart = new Date(); dayStart.setHours(9, 0, 0, 0);
-  const dayEnd   = new Date(); dayEnd.setHours(22, 0, 0, 0);
-
-  const range = dayEnd.getTime() - dayStart.getTime();
-
-  // Generate many candidates then pick evenly distributed ones
   const candidates: number[] = [];
   for (let i = 0; i < count * 5; i++) {
-    const t = dayStart.getTime() + Math.random() * range;
-    if (t > now + 2 * 60_000) candidates.push(t); // at least 2 min from now
+    const t = start.getTime() + Math.random() * range;
+    if (t > now + 2 * 60_000) candidates.push(t);
   }
   candidates.sort((a, b) => a - b);
 
-  // Pick `count` spread across the day by chunking
   const chunkSize = Math.floor(candidates.length / count);
   const chosen: number[] = [];
   for (let i = 0; i < count && i * chunkSize < candidates.length; i++) {
@@ -88,32 +107,27 @@ export function scheduleForToday(): void {
   }
 
   chosen.forEach((t, idx) => {
-    const delay = t - now;
-    setTimeout(() => fireNotification(idx), delay);
+    setTimeout(() => fireLocalNotification(idx), t - now);
   });
 }
 
-function fireNotification(idx: number): void {
-  if (!notificationsEnabled()) return;
-  if (Notification.permission !== "granted") return;
-
+function fireLocalNotification(idx: number): void {
+  if (!notificationsEnabled() || Notification.permission !== "granted") return;
   const msg = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
 
-  // Try via service worker first (persists when tab is in background)
   if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage({
       type: "SHOW_NOTIFICATION",
       title: msg.title,
       body: msg.body,
-      tag: `tracksy-${idx}`,
+      tag: `tracksy-local-${idx}`,
     });
   } else {
-    // Fallback: direct Notification API
     new Notification(msg.title, {
       body: msg.body,
       icon: "/logotr.png",
       badge: "/logotr.png",
-      tag: `tracksy-${idx}`,
+      tag: `tracksy-local-${idx}`,
     });
   }
 }

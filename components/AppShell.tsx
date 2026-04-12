@@ -8,7 +8,7 @@ import PinVerification from "./PinVerification";
 import SplashScreen from "./SplashScreen";
 import AccountSetup from "./AccountSetup";
 import { getOrCreateUserProfile } from "@/lib/firestore";
-import { registerSW, scheduleForToday } from "@/lib/notifications";
+import { registerSW, registerFcmToken, scheduleForToday, notificationsEnabled } from "@/lib/notifications";
 
 type Phase = "splash" | "loading" | "login" | "pin-setup" | "pin-verify" | "account-setup" | "app";
 
@@ -65,8 +65,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   if (phase === "app") {
-    // Register service worker + schedule notifications once per day
-    registerSW().then(() => scheduleForToday());
+    if (userId && notificationsEnabled()) {
+      // Register FCM for true background push, fallback local scheduling too
+      registerFcmToken(userId);
+      registerSW().then(() => scheduleForToday());
+    }
     return <>{children}</>;
   }
 

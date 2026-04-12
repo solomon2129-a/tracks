@@ -1,6 +1,7 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -27,3 +28,10 @@ export function getFirebaseDb() {
 }
 
 export const googleProvider = new GoogleAuthProvider();
+
+export async function getFirebaseMessaging() {
+  if (typeof window === "undefined") return null;
+  const supported = await isSupported();
+  if (!supported) return null;
+  return getMessaging(getApp());
+}
