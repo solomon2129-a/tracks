@@ -48,6 +48,21 @@ export default function BottomNav() {
           <span className="text-[9px] font-semibold tracking-wide" style={{ color: active("/goals") ? "#fff" : "#444" }}>Goals</span>
         </Link>
 
+        <Link href="/dues" className="flex-1 flex flex-col items-center gap-1 active:scale-90 transition-transform">
+          <svg
+            width="22" height="22" viewBox="0 0 24 24"
+            fill="none"
+            stroke={active("/dues") ? "#fff" : "#444"}
+            strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+          >
+            <path d="M16 3h5v5" />
+            <path d="M8 21H3v-5" />
+            <path d="M21 3l-7 7" />
+            <path d="M3 21l7-7" />
+          </svg>
+          <span className="text-[9px] font-semibold tracking-wide" style={{ color: active("/dues") ? "#fff" : "#444" }}>Dues</span>
+        </Link>
+
         <Link href="/profile" className="flex-1 flex flex-col items-center gap-1 active:scale-90 transition-transform">
           <svg
             width="22" height="22" viewBox="0 0 24 24"
