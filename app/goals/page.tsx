@@ -96,7 +96,12 @@ function RingProgress({ pct, size = 60, stroke = 4 }: { pct: number; size?: numb
         stroke={pct >= 100 ? "#22C55E" : "#FFFFFF"} strokeWidth={stroke}
         strokeDasharray={circ} strokeDashoffset={offset}
         strokeLinecap="round"
-        style={{ transition: "stroke-dashoffset 0.5s ease" }}
+        style={{
+          transition: "stroke-dashoffset 0.5s ease",
+          filter: pct >= 100
+            ? "drop-shadow(0 0 4px rgba(34,197,94,0.9)) drop-shadow(0 0 10px rgba(34,197,94,0.4))"
+            : "drop-shadow(0 0 4px rgba(255,255,255,0.7)) drop-shadow(0 0 10px rgba(255,255,255,0.25))",
+        }}
       />
     </svg>
   );
@@ -148,7 +153,7 @@ function GoalCard({
   const targetDate = new Date(goal.targetDateMs);
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: "#1A1A1A" }}>
+    <div className="glow-card rounded-2xl overflow-hidden" style={{ background: "#1A1A1A" }}>
       {/* Top */}
       <div className="p-4 flex items-center gap-3">
         <div className="relative flex-shrink-0">
@@ -622,11 +627,18 @@ export default function GoalsPage() {
                 ? "rgba(34,197,94,0.07)"
                 : "rgba(255,255,255,0.04)",
               border: `1px solid ${
-                mot.color === "#F43F5E" ? "rgba(244,63,94,0.18)"
-                : mot.color === "#FBBF24" ? "rgba(251,191,36,0.18)"
-                : mot.color === "#22C55E" ? "rgba(34,197,94,0.18)"
-                : "rgba(255,255,255,0.08)"
+                mot.color === "#F43F5E" ? "rgba(244,63,94,0.25)"
+                : mot.color === "#FBBF24" ? "rgba(251,191,36,0.25)"
+                : mot.color === "#22C55E" ? "rgba(34,197,94,0.25)"
+                : "rgba(255,255,255,0.1)"
               }`,
+              boxShadow: mot.color === "#F43F5E"
+                ? "0 0 20px rgba(244,63,94,0.18), 0 0 60px rgba(244,63,94,0.07)"
+                : mot.color === "#FBBF24"
+                ? "0 0 20px rgba(251,191,36,0.18), 0 0 60px rgba(251,191,36,0.07)"
+                : mot.color === "#22C55E"
+                ? "0 0 20px rgba(34,197,94,0.18), 0 0 60px rgba(34,197,94,0.07)"
+                : "0 0 20px rgba(255,255,255,0.05)",
             }}
           >
             <p className="font-bold text-base leading-snug mb-1" style={{ color: mot.color }}>{mot.msg}</p>

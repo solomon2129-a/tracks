@@ -112,7 +112,7 @@ export default function HomePage() {
 
       {/* Form card */}
       <div
-        className="flex-1 flex flex-col mx-5 mb-24 rounded-2xl overflow-hidden"
+        className="glow-card flex-1 flex flex-col mx-5 mb-24 rounded-2xl overflow-hidden"
         style={{ background: "#1A1A1A" }}
       >
         {/* Step dots */}
@@ -184,7 +184,7 @@ export default function HomePage() {
                     onKeyDown={e => e.key === "Enter" && isValid && goTo(2, "forward")}
                     placeholder="0"
                     className="bg-transparent border-none outline-none text-center w-52"
-                    style={{ fontSize: 64, fontWeight: 700, color: isValid ? "#fff" : "#2A2A2A" }}
+                    style={{ fontSize: 64, fontWeight: 700, color: isValid ? "#fff" : "#2A2A2A", textShadow: isValid ? "0 0 30px rgba(255,255,255,0.35), 0 0 60px rgba(255,255,255,0.1)" : "none" }}
                   />
                 </div>
                 <div
@@ -281,6 +281,11 @@ export default function HomePage() {
                             : "rgba(255,255,255,0.04)",
                           border: `1px solid ${isSelected ? (saved ? "#22C55E" : "#FFFFFF") : "rgba(255,255,255,0.07)"}`,
                           opacity: saving && !isSelected ? 0.4 : 1,
+                          boxShadow: isSelected
+                            ? saved
+                              ? "0 0 20px rgba(34,197,94,0.6), 0 0 40px rgba(34,197,94,0.2)"
+                              : "0 0 20px rgba(255,255,255,0.35), 0 0 40px rgba(255,255,255,0.1)"
+                            : "none",
                         }}
                       >
                         <CategoryIcon

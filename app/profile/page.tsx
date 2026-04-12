@@ -116,10 +116,10 @@ function StatsCard({ income, expenses, saved, net, goals }: {
   const savPct  = Math.min(100, (saved / base) * 100);
 
   return (
-    <div className="rounded-2xl p-5 fade-up" style={{ background: "#1A1A1A" }}>
+    <div className="glow-card rounded-2xl p-5 fade-up" style={{ background: "#1A1A1A" }}>
       {/* Net */}
       <p className="text-[#3A3A3A] text-[9px] font-bold tracking-widest uppercase mb-1">Net Balance</p>
-      <p className="font-bold tracking-tight leading-none mb-5"
+      <p className={`font-bold tracking-tight leading-none mb-5 ${net < 0 ? "text-glow-red" : net > 0 ? "text-glow-white" : ""}`}
         style={{ fontSize: 38, color: net < 0 ? "#F43F5E" : net > 0 ? "#fff" : "#555" }}>
         {net < 0 ? "−" : net > 0 ? "+" : ""}{fmt(net)}
       </p>
@@ -130,10 +130,10 @@ function StatsCard({ income, expenses, saved, net, goals }: {
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[9px] font-bold tracking-widest uppercase" style={{ color: "#3A3A3A" }}>Income</span>
-            <span className="text-xs font-bold tabular-nums" style={{ color: "#22C55E" }}>+{fmt(income)}</span>
+            <span className="text-xs font-bold tabular-nums text-glow-green" style={{ color: "#22C55E" }}>+{fmt(income)}</span>
           </div>
           <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-            <div style={{ width: `${incPct}%`, height: "100%", borderRadius: 9999, background: "#22C55E", transition: "width 0.6s ease" }} />
+            <div style={{ width: `${incPct}%`, height: "100%", borderRadius: 9999, background: "#22C55E", boxShadow: "0 0 8px rgba(34,197,94,0.8), 0 0 20px rgba(34,197,94,0.3)", transition: "width 0.6s ease" }} />
           </div>
         </div>
 
@@ -144,7 +144,7 @@ function StatsCard({ income, expenses, saved, net, goals }: {
             <span className="text-xs font-bold tabular-nums text-white">−{fmt(expenses)}</span>
           </div>
           <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-            <div style={{ width: `${expPct}%`, height: "100%", borderRadius: 9999, background: "#F43F5E", transition: "width 0.6s ease" }} />
+            <div style={{ width: `${expPct}%`, height: "100%", borderRadius: 9999, background: "#F43F5E", boxShadow: "0 0 8px rgba(244,63,94,0.8), 0 0 20px rgba(244,63,94,0.3)", transition: "width 0.6s ease" }} />
           </div>
         </div>
 
@@ -156,7 +156,7 @@ function StatsCard({ income, expenses, saved, net, goals }: {
               <span className="text-xs font-bold tabular-nums" style={{ color: "#818CF8" }}>−{fmt(saved)}</span>
             </div>
             <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-              <div style={{ width: `${savPct}%`, height: "100%", borderRadius: 9999, background: "#818CF8", transition: "width 0.6s ease" }} />
+              <div style={{ width: `${savPct}%`, height: "100%", borderRadius: 9999, background: "#818CF8", boxShadow: "0 0 8px rgba(129,140,248,0.8), 0 0 20px rgba(129,140,248,0.3)", transition: "width 0.6s ease" }} />
             </div>
           </div>
         )}
@@ -168,12 +168,12 @@ function StatsCard({ income, expenses, saved, net, goals }: {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[9px] font-bold tracking-widest uppercase" style={{ color: "#3A3A3A" }}>Goals</span>
-                <span className="text-xs font-bold tabular-nums" style={{ color: "#FBBF24" }}>
+                <span className="text-xs font-bold tabular-nums text-glow-yellow" style={{ color: "#FBBF24" }}>
                   {fmt(totalGoalSaved)} <span style={{ color: "#3A3A3A" }}>/ {fmt(totalGoalTarget)}</span>
                 </span>
               </div>
               <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                <div style={{ width: `${goalPct}%`, height: "100%", borderRadius: 9999, background: "#FBBF24", transition: "width 0.7s ease" }} />
+                <div style={{ width: `${goalPct}%`, height: "100%", borderRadius: 9999, background: "#FBBF24", boxShadow: "0 0 8px rgba(251,191,36,0.8), 0 0 20px rgba(251,191,36,0.3)", transition: "width 0.7s ease" }} />
               </div>
               <p className="text-[9px] mt-1" style={{ color: "#3A3A3A" }}>{Math.round(goalPct)}% of total target saved</p>
             </div>

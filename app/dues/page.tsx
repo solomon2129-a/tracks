@@ -159,6 +159,9 @@ function DueCard({ due, onSettle, onDelete }: {
         background: settled ? "rgba(255,255,255,0.03)" : bgColor,
         border: `1px solid ${settled ? "rgba(255,255,255,0.06)" : borderColor}`,
         opacity: settled ? 0.55 : 1,
+        boxShadow: settled ? "none" : isOwed
+          ? "0 0 16px rgba(34,197,94,0.12), 0 0 40px rgba(34,197,94,0.05)"
+          : "0 0 16px rgba(244,63,94,0.12), 0 0 40px rgba(244,63,94,0.05)",
       }}
     >
       {/* Avatar */}

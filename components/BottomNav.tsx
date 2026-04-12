@@ -62,8 +62,8 @@ export default function BottomNav() {
           backdropFilter: "blur(28px)",
           WebkitBackdropFilter: "blur(28px)",
           borderRadius: 999,
-          border: "1px solid rgba(255,255,255,0.07)",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(255,255,255,0.04) inset",
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 8px 40px rgba(0,0,0,0.6), 0 0 0 0.5px rgba(255,255,255,0.05) inset, 0 0 60px rgba(255,255,255,0.03)",
         }}
       >
         {LINKS.map(({ href, icon }) => {
@@ -75,16 +75,19 @@ export default function BottomNav() {
               className="relative flex items-center justify-center w-14 h-12 rounded-full transition-all duration-200 active:scale-90"
               style={{
                 background: isActive ? "rgba(255,255,255,0.1)" : "transparent",
+                boxShadow: isActive ? "0 0 18px rgba(255,255,255,0.12), 0 0 40px rgba(255,255,255,0.05)" : "none",
               }}
             >
               {/* Active dot */}
               {isActive && (
                 <span
                   className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
-                  style={{ background: "#fff", opacity: 0.5 }}
+                  style={{ background: "#fff", boxShadow: "0 0 6px rgba(255,255,255,0.9)" }}
                 />
               )}
-              {icon(isActive)}
+              <span className={isActive ? "icon-glow" : ""}>
+                {icon(isActive)}
+              </span>
             </Link>
           );
         })}
