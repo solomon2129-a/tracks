@@ -206,10 +206,10 @@ function TxnList({ txns, userId }: { txns: Transaction[]; userId: string }) {
 }
 
 /* ─── Profile Drawer ─── */
-function ProfileDrawer({ open, onClose, user, onChangePin, onForgotPin, onSignOut, onReset }: {
+function ProfileDrawer({ open, onClose, user, onReminders, onChangePin, onForgotPin, onSignOut, onReset }: {
   open: boolean; onClose: () => void;
   user: { email?: string | null; metadata?: { creationTime?: string } } | null;
-  onChangePin: () => void; onForgotPin: () => void; onSignOut: () => void; onReset: () => void;
+  onReminders: () => void; onChangePin: () => void; onForgotPin: () => void; onSignOut: () => void; onReset: () => void;
 }) {
   const [resetConfirm, setResetConfirm] = useState(false);
   if (!open) return null;
@@ -245,6 +245,8 @@ function ProfileDrawer({ open, onClose, user, onChangePin, onForgotPin, onSignOu
               <p className="text-xs mt-0.5" style={{ color: "#3A3A3A" }}>Member since {since}</p>
             </div>
           </div>
+          <Row onClick={onReminders} label="Reminders"
+            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>} />
           <Row onClick={onChangePin} label="Change PIN"
             icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>} />
           <Row onClick={onForgotPin} label="Forgot PIN"
@@ -356,8 +358,8 @@ export default function ProfilePage() {
             style={{ background: "#1A1A1A", color: "#888" }}>
             Today
           </button>
-          {/* Avatar / settings */}
-          <button onClick={() => router.push("/settings")}
+          {/* Avatar / profile drawer */}
+          <button onClick={() => setDrawer(true)}
             className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-transform"
             style={{ background: "#1A1A1A" }}>
             <span className="text-white font-bold text-sm leading-none">
@@ -494,7 +496,8 @@ export default function ProfilePage() {
         open={drawerOpen}
         onClose={() => setDrawer(false)}
         user={user}
-        onChangePin={() => { setDrawer(false); router.push("/settings"); }}
+        onReminders={() => { setDrawer(false); router.push("/settings"); }}
+        onChangePin={() => { setDrawer(false); router.push("/settings?tab=account"); }}
         onForgotPin={async () => {
           setDrawer(false);
           if (user?.email) { try { await forgotPassword(user.email); } catch {} alert(`Reset email sent to ${user.email}`); }

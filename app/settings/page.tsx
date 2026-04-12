@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { deleteAllTransactions } from "@/lib/firestore";
 import {
@@ -25,7 +25,8 @@ const TABS: { id: Tab; label: string }[] = [
 export default function SettingsPage() {
   const { userId, changePin, lock, resetAccount } = useAuth();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("reminders");
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<Tab>((searchParams.get("tab") as Tab) || "reminders");
 
   /* ── Reminders state ── */
   const [notifPermission, setNotifPermission] = useState<string>("default");
