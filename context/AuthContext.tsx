@@ -94,6 +94,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const verifyPin = async (pin: string): Promise<boolean> => {
     if (!user) return false;
+    // Biometric unlock — Face ID already verified by the browser
+    if (pin === "__biometric__") {
+      setIsPinUnlocked(true);
+      return true;
+    }
     const storedHash = localStorage.getItem(pinHashKey(user.uid));
     if (!storedHash) {
       setIsPinUnlocked(true);

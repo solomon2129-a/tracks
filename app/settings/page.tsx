@@ -11,8 +11,14 @@ import {
   setNotificationsEnabled,
   scheduleForToday,
   registerSW,
+  registerFcmToken,
 } from "@/lib/notifications";
-import { registerFcmToken } from "@/lib/notifications";
+import {
+  isBiometricSupported,
+  isBiometricEnrolled,
+  registerBiometric,
+  removeBiometric,
+} from "@/lib/biometric";
 
 type Tab = "reminders" | "account" | "data";
 
@@ -23,7 +29,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export default function SettingsPage() {
-  const { userId, changePin, lock, resetAccount } = useAuth();
+  const { userId, user, changePin, lock, resetAccount } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>((searchParams.get("tab") as Tab) || "reminders");
@@ -99,7 +105,36 @@ export default function SettingsPage() {
   const [pinError, setPinError]     = useState("");
   const [pinSuccess, setPinSuccess] = useState(false);
   const [pinLoading, setPinLoading] = useState(false);
-  const [resetConfirm, setResetConfirm] = useState(false);
+  const [resetConfirm, setResetConfirm]     = useState(false);
+  const [bioSupported, setBioSupported]     = useState(false);
+  const [bioEnrolled, setBioEnrolled]       = useState(false);
+  const [bioLoading, setBioLoading]         = useState(false);
+  const [bioMsg, setBioMsg]                 = useState("");
+
+  useEffect(() => {
+    setBioSupported(isBiometricSupported());
+    if (userId) setBioEnrolled(isBiometricEnrolled(userId));
+  }, [userId]);
+
+  const handleBioToggle = async () => {
+    if (!userId || !user) return;
+    if (bioEnrolled) {
+      removeBiometric(userId);
+      setBioEnrolled(false);
+      setBioMsg("");
+      return;
+    }
+    setBioLoading(true);
+    setBioMsg("");
+    const ok = await registerBiometric(userId, user.email ?? userId);
+    setBioLoading(false);
+    if (ok) {
+      setBioEnrolled(true);
+      setBioMsg("Face ID enabled. You can now unlock with your face.");
+    } else {
+      setBioMsg("Setup failed or was cancelled. Try again.");
+    }
+  };
 
   const handleChangePin = async () => {
     if (!newPin || !confirmPin || !currentPin) return;
@@ -250,6 +285,33 @@ export default function SettingsPage() {
         {/* ── ACCOUNT TAB ── */}
         {tab === "account" && (
           <>
+            {/* Face ID */}
+            {bioSupported && (
+              <div className="rounded-2xl p-5" style={{ background: "#1A1A1A" }}>
+                <div className="flex items-center justify-between mb-1">
+                  <div>
+                    <p className="text-white font-bold">Face ID / Biometrics</p>
+                    <p className="text-[#555] text-xs mt-0.5">Unlock Tracksy with your face or fingerprint</p>
+                  </div>
+                  <button
+                    onClick={handleBioToggle}
+                    disabled={bioLoading}
+                    className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                    style={{ background: bioEnrolled ? "#22C55E" : "rgba(255,255,255,0.1)" }}
+                  >
+                    <span
+                      className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all duration-300"
+                      style={{ left: bioEnrolled ? "calc(100% - 22px)" : 2 }}
+                    />
+                  </button>
+                </div>
+                {bioLoading && <p className="text-[#555] text-xs mt-2">Waiting for biometric…</p>}
+                {bioMsg && (
+                  <p className="text-xs mt-2" style={{ color: bioEnrolled ? "#22C55E" : "#F43F5E" }}>{bioMsg}</p>
+                )}
+              </div>
+            )}
+
             <div className="rounded-2xl p-5" style={{ background: "#1A1A1A" }}>
               <p className="text-white font-bold mb-1">Change PIN</p>
               <p className="text-[#555] text-xs mb-4">Update the PIN used to unlock the app.</p>
