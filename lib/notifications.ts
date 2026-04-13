@@ -107,52 +107,57 @@ export function scheduleForToday(): void {
   if (Notification.permission !== "granted") return;
   if (!notificationsEnabled()) return;
 
-  const today = new Date().toDateString();
-  if (localStorage.getItem(SCHEDULE_KEY) === today) return;
-  localStorage.setItem(SCHEDULE_KEY, today);
+  const now  = Date.now();
+  const end  = new Date(); end.setHours(22, 0, 0, 0);
 
-  const count = 5 + Math.floor(Math.random() * 4); // 5–8
-  const now   = Date.now();
-  const start = new Date(); start.setHours(9, 0, 0, 0);
-  const end   = new Date(); end.setHours(22, 0, 0, 0);
-  const range = end.getTime() - start.getTime();
+  // Build a fixed daily seed: 6 notification times spread across 9am–10pm
+  // Re-run every app-open so we always schedule the remaining slots for today.
+  const dayStart = new Date(); dayStart.setHours(9, 0, 0, 0);
+  const range    = end.getTime() - dayStart.getTime();
 
-  const candidates: number[] = [];
-  for (let i = 0; i < count * 5; i++) {
-    const t = start.getTime() + Math.random() * range;
-    if (t > now + 2 * 60_000) candidates.push(t);
+  // Deterministic-ish set of 6 slots for today (different each day)
+  const seed = new Date().toDateString();
+  const slots: number[] = [];
+  for (let i = 0; i < 6; i++) {
+    // Simple hash of (seed + i) → float in [0,1)
+    let h = 0;
+    for (const c of seed + i) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0;
+    const frac = (h >>> 0) / 0xffffffff;
+    slots.push(dayStart.getTime() + frac * range);
   }
-  candidates.sort((a, b) => a - b);
+  slots.sort((a, b) => a - b);
 
-  const chunkSize = Math.floor(candidates.length / count);
-  const chosen: number[] = [];
-  for (let i = 0; i < count && i * chunkSize < candidates.length; i++) {
-    const slice = candidates.slice(i * chunkSize, (i + 1) * chunkSize);
-    chosen.push(slice[Math.floor(Math.random() * slice.length)]);
-  }
-
-  chosen.forEach((t, idx) => {
-    setTimeout(() => fireLocalNotification(idx), t - now);
+  // Schedule only slots still in the future (at least 1 min from now)
+  slots.forEach((t, idx) => {
+    const delay = t - now;
+    if (delay > 60_000) {
+      setTimeout(() => fireLocalNotification(idx), delay);
+    }
   });
 }
 
 function fireLocalNotification(idx: number): void {
   if (!notificationsEnabled() || Notification.permission !== "granted") return;
   const msg = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
+  showNotification(msg.title, msg.body, `tracksy-local-${idx}`);
+}
 
+function showNotification(title: string, body: string, tag: string): void {
   if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage({
-      type: "SHOW_NOTIFICATION",
-      title: msg.title,
-      body: msg.body,
-      tag: `tracksy-local-${idx}`,
+      type: "SHOW_NOTIFICATION", title, body, tag,
     });
   } else {
-    new Notification(msg.title, {
-      body: msg.body,
-      icon: "/logotr.png",
-      badge: "/logotr.png",
-      tag: `tracksy-local-${idx}`,
-    });
+    new Notification(title, { body, icon: "/logotr.png", badge: "/logotr.png", tag });
   }
+}
+
+/** Fire an immediate test notification (called from Settings). */
+export async function sendTestNotification(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  const granted = await requestPermission();
+  if (!granted) return false;
+  const msg = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
+  showNotification(msg.title, msg.body, "tracksy-test");
+  return true;
 }
