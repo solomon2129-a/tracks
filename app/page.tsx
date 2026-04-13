@@ -34,16 +34,13 @@ export default function HomePage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (userId) {
-      const unsubscribe = subscribeToProfile(userId, (profile) => {
-        setAccounts(profile.accounts);
-        if (!selectedAccount && profile.accounts.length > 0) {
-          setSelectedAccount(profile.accounts[0].id);
-        }
-      });
-      return unsubscribe;
-    }
-  }, [userId, selectedAccount]);
+    if (!userId) return;
+    const unsubscribe = subscribeToProfile(userId, (profile) => {
+      setAccounts(profile.accounts);
+      setSelectedAccount(id => id || profile.accounts[0]?.id || "");
+    });
+    return unsubscribe;
+  }, [userId]);
 
   useEffect(() => {
     if (step === 1) {
@@ -69,7 +66,12 @@ export default function HomePage() {
   }, [accounts]);
 
   const handleSave = async (cat: Category) => {
-    if (!type || !amount || !userId || !selectedAccount) return;
+    const accountId = selectedAccount || accounts[0]?.id || "";
+    if (!type || !amount || !userId || !accountId) {
+      setSaveError(true);
+      setTimeout(() => setSaveError(false), 3000);
+      return;
+    }
     setCategory(cat);
     setSaving(true);
     setSaveError(false);
@@ -78,13 +80,14 @@ export default function HomePage() {
         amount: parseFloat(amount),
         type,
         category: cat,
-        accountId: selectedAccount,
+        accountId,
       });
       setSaved(true);
       setTimeout(() => { setSaved(false); reset(); }, 1000);
-    } catch {
+    } catch (err) {
+      console.error("[handleSave] Firestore error:", err);
       setSaveError(true);
-      setTimeout(() => setSaveError(false), 3000);
+      setTimeout(() => setSaveError(false), 4000);
     } finally {
       setSaving(false);
     }
@@ -306,7 +309,9 @@ export default function HomePage() {
                 </div>
               </div>
               {saveError && (
-                <p className="text-[#F43F5E] text-xs text-center pb-2">Failed to save. Check your connection.</p>
+                <p className="text-[#F43F5E] text-xs text-center pb-2">
+                  {!selectedAccount && accounts.length === 0 ? "Add an account in Profile first." : "Failed to save. Check your connection."}
+                </p>
               )}
               <div className="pb-8">
                 <button
