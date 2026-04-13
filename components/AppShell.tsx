@@ -17,7 +17,7 @@ function AppWithDeferredNotif({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        scheduleDeferredNotification(5 * 60 * 1000); // 5 min after closing
+        scheduleDeferredNotification(30 * 1000); // 30 sec after closing
       }
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
