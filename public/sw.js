@@ -1,6 +1,35 @@
+// ─── Firebase Messaging (background FCM push) ───────────────────────────────
+importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js");
+
+firebase.initializeApp({
+  apiKey: "AIzaSyCNWMFgZpYciqPpQb-TaniNW5DZ4Ys99js",
+  authDomain: "tracksy-26805.firebaseapp.com",
+  projectId: "tracksy-26805",
+  storageBucket: "tracksy-26805.firebasestorage.app",
+  messagingSenderId: "424610149504",
+  appId: "1:424610149504:web:7f0bad661548b3ddc9e265",
+});
+
+const messaging = firebase.messaging();
+
+messaging.onBackgroundMessage(payload => {
+  const { title, body } = payload.notification ?? {};
+  self.registration.showNotification(title || "Tracksy", {
+    body: body || "Time to log your expenses.",
+    icon: "/logotr.png",
+    badge: "/logotr.png",
+    tag: "tracksy-fcm",
+    renotify: true,
+    data: { url: "/" },
+  });
+});
+
+// ─── Lifecycle ───────────────────────────────────────────────────────────────
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 
+// ─── Notification messages ───────────────────────────────────────────────────
 const MESSAGES = [
   { title: "Log your expenses, asshole 😤", body: "You spent money today. We both know it. Open the app." },
   { title: "Hey dumbass 👋", body: "Did you log what you spent? No? Then do it right now." },
@@ -41,8 +70,9 @@ function randomMsg() {
   return MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
 }
 
+// ─── Message handler ─────────────────────────────────────────────────────────
 self.addEventListener("message", event => {
-  // Immediate notification from main thread
+  // Immediate notification triggered from main thread
   if (event.data?.type === "SHOW_NOTIFICATION") {
     const { title, body, tag } = event.data;
     event.waitUntil(
@@ -52,27 +82,23 @@ self.addEventListener("message", event => {
     );
   }
 
-  // Deferred notification: keep SW alive and fire after delay
+  // Deferred notification: keep SW alive via waitUntil, fire after delay
   if (event.data?.type === "SCHEDULE_DEFERRED_NOTIF") {
-    const delay = event.data.delay ?? 5 * 60 * 1000; // default 5 min
+    const delay = event.data.delay ?? 30_000;
     event.waitUntil(
       new Promise(resolve => {
         setTimeout(() => {
-          // Only fire if no app window is visible
           self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clients => {
             const anyVisible = clients.some(c => c.visibilityState === "visible");
-            if (!anyVisible) {
-              const msg = randomMsg();
-              self.registration.showNotification(msg.title, {
-                body: msg.body,
-                icon: "/logotr.png",
-                badge: "/logotr.png",
-                tag: "tracksy-deferred",
-                renotify: true,
-              }).then(resolve).catch(resolve);
-            } else {
-              resolve();
-            }
+            if (anyVisible) { resolve(); return; }
+            const msg = randomMsg();
+            self.registration.showNotification(msg.title, {
+              body: msg.body,
+              icon: "/logotr.png",
+              badge: "/logotr.png",
+              tag: "tracksy-deferred",
+              renotify: true,
+            }).then(resolve).catch(resolve);
           }).catch(resolve);
         }, delay);
       })
@@ -80,12 +106,13 @@ self.addEventListener("message", event => {
   }
 });
 
-// Open/focus app when notification is tapped
+// ─── Notification tap ────────────────────────────────────────────────────────
 self.addEventListener("notificationclick", event => {
   event.notification.close();
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clients => {
-      if (clients.length > 0) return clients[0].focus();
+      const match = clients.find(c => c.url.includes(self.location.origin));
+      if (match) return match.focus();
       return self.clients.openWindow("/");
     })
   );

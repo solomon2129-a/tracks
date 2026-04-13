@@ -81,7 +81,8 @@ export async function registerFcmToken(userId: string): Promise<void> {
     const messaging = await getFirebaseMessaging();
     if (!messaging) return;
 
-    const swReg = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+    // Use the single merged sw.js — avoids dual-SW scope conflict
+    const swReg = await navigator.serviceWorker.ready;
     const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
     if (token) await saveFcmToken(userId, token);
   } catch {
@@ -143,9 +144,15 @@ function fireLocalNotification(idx: number): void {
 }
 
 function showNotification(title: string, body: string, tag: string): void {
-  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({
-      type: "SHOW_NOTIFICATION", title, body, tag,
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.ready.then(reg => {
+      if (reg.active) {
+        reg.active.postMessage({ type: "SHOW_NOTIFICATION", title, body, tag });
+      } else {
+        new Notification(title, { body, icon: "/logotr.png", badge: "/logotr.png", tag });
+      }
+    }).catch(() => {
+      new Notification(title, { body, icon: "/logotr.png", badge: "/logotr.png", tag });
     });
   } else {
     new Notification(title, { body, icon: "/logotr.png", badge: "/logotr.png", tag });
@@ -157,14 +164,15 @@ function showNotification(title: string, body: string, tag: string): void {
  * the page is closed. Works via event.waitUntil() keepalive in sw.js.
  * On Android Chrome this survives several minutes; on iOS it may not.
  */
-export function scheduleDeferredNotification(delayMs = 5 * 60 * 1000): void {
+export async function scheduleDeferredNotification(delayMs = 30_000): Promise<void> {
   if (typeof window === "undefined") return;
   if (!notificationsEnabled() || Notification.permission !== "granted") return;
-  if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) return;
-  navigator.serviceWorker.controller.postMessage({
-    type: "SCHEDULE_DEFERRED_NOTIF",
-    delay: delayMs,
-  });
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    // .ready waits until a SW is fully active — never null like .controller
+    const reg = await navigator.serviceWorker.ready;
+    reg.active?.postMessage({ type: "SCHEDULE_DEFERRED_NOTIF", delay: delayMs });
+  } catch { /* SW not available */ }
 }
 
 /** Fire an immediate test notification (called from Settings). */
