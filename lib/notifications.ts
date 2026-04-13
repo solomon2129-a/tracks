@@ -152,6 +152,21 @@ function showNotification(title: string, body: string, tag: string): void {
   }
 }
 
+/**
+ * Tell the service worker to show a notification after `delayMs` even if
+ * the page is closed. Works via event.waitUntil() keepalive in sw.js.
+ * On Android Chrome this survives several minutes; on iOS it may not.
+ */
+export function scheduleDeferredNotification(delayMs = 5 * 60 * 1000): void {
+  if (typeof window === "undefined") return;
+  if (!notificationsEnabled() || Notification.permission !== "granted") return;
+  if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) return;
+  navigator.serviceWorker.controller.postMessage({
+    type: "SCHEDULE_DEFERRED_NOTIF",
+    delay: delayMs,
+  });
+}
+
 /** Fire an immediate test notification (called from Settings). */
 export async function sendTestNotification(): Promise<boolean> {
   if (typeof window === "undefined") return false;

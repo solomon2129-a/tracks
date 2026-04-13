@@ -8,9 +8,24 @@ import PinVerification from "./PinVerification";
 import SplashScreen from "./SplashScreen";
 import AccountSetup from "./AccountSetup";
 import { getOrCreateUserProfile } from "@/lib/firestore";
-import { registerSW, registerFcmToken, scheduleForToday, notificationsEnabled } from "@/lib/notifications";
+import { registerSW, registerFcmToken, scheduleForToday, scheduleDeferredNotification, notificationsEnabled } from "@/lib/notifications";
 
 type Phase = "splash" | "loading" | "login" | "pin-setup" | "pin-verify" | "account-setup" | "app";
+
+/** Wraps the app and schedules a deferred notification whenever the tab is hidden. */
+function AppWithDeferredNotif({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        scheduleDeferredNotification(5 * 60 * 1000); // 5 min after closing
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+
+  return <>{children}</>;
+}
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { userId, loading, isAuthenticated, isPinUnlocked, hasCompletedPinSetup } = useAuth();
@@ -70,7 +85,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       registerFcmToken(userId);
       registerSW().then(() => scheduleForToday());
     }
-    return <>{children}</>;
+    return <AppWithDeferredNotif>{children}</AppWithDeferredNotif>;
   }
 
   return <SplashScreen />;
