@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import BottomNav from "@/components/BottomNav";
 import CategoryIcon from "@/components/CategoryIcon";
-import { addTransaction, TransactionType, Category, EXPENSE_CATEGORIES, INCOME_CATEGORIES, subscribeToProfile, Account } from "@/lib/firestore";
+import { addTransaction, TransactionType, Category, EXPENSE_CATEGORIES, INCOME_CATEGORIES, subscribeToProfile, getOrCreateUserProfile, Account } from "@/lib/firestore";
 
 type Step = 0 | 1 | 2 | 3;
 
@@ -33,6 +33,16 @@ export default function HomePage() {
   const [saved, setSaved] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Eager one-time load (same as AppShell) so accounts are available immediately
+  useEffect(() => {
+    if (!userId) return;
+    getOrCreateUserProfile(userId).then(profile => {
+      setAccounts(profile.accounts);
+      setSelectedAccount(id => id || profile.accounts[0]?.id || "");
+    }).catch(() => {});
+  }, [userId]);
+
+  // Real-time subscription for live updates
   useEffect(() => {
     if (!userId) return;
     const unsubscribe = subscribeToProfile(userId, (profile) => {
@@ -67,11 +77,7 @@ export default function HomePage() {
 
   const handleSave = async (cat: Category) => {
     const accountId = selectedAccount || accounts[0]?.id || "";
-    if (!type || !amount || !userId || !accountId) {
-      setSaveError(true);
-      setTimeout(() => setSaveError(false), 3000);
-      return;
-    }
+    if (!type || !amount || !userId) return;
     setCategory(cat);
     setSaving(true);
     setSaveError(false);
@@ -309,9 +315,7 @@ export default function HomePage() {
                 </div>
               </div>
               {saveError && (
-                <p className="text-[#F43F5E] text-xs text-center pb-2">
-                  {!selectedAccount && accounts.length === 0 ? "Add an account in Profile first." : "Failed to save. Check your connection."}
-                </p>
+                <p className="text-[#F43F5E] text-xs text-center pb-2">Failed to save. Check your connection.</p>
               )}
               <div className="pb-8">
                 <button
